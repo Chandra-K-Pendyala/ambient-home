@@ -3,70 +3,35 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Home · Ambient prototype</title>
+  <title>Ambient Home</title>
   <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="scene.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="stage" class="stage">
-    <div id="wallpaper" class="fill" aria-hidden="true">
-      <div class="sky fill" data-phase="dawn"></div>
-      <div class="sky fill" data-phase="morning"></div>
-      <div class="sky fill" data-phase="day"></div>
-      <div class="sky fill" data-phase="golden"></div>
-      <div class="sky fill" data-phase="dusk"></div>
-      <div class="sky fill" data-phase="night"></div>
-      <div id="stars" class="stars fill"></div>
-      <div id="shooting" class="shooting"><i></i></div>
-      <div id="celestial" class="celestial" data-depth="0.04">
-        <div id="sun" class="sun"></div>
-        <div id="moon" class="moon"><div id="moonGlow" class="moon-glow"></div><div id="moonDisc" class="moon-disc"></div></div>
-      </div>
-      <div id="bolt" class="bolt"></div>
-      <div id="clouds" class="clouds fill" data-depth="0.08"></div>
-      <div id="birds" class="birds"></div>
-      <div id="farLayer" class="layer" data-depth="0.16"></div>
-      <div id="fogFar" class="fog-band fog-far"></div>
-      <div id="midLayer" class="layer" data-depth="0.3"></div>
-      <div id="nearLayer" class="layer" data-depth="0.5">
-        <div id="shore"></div>
-        <div id="nearSnow" class="land-snow"></div>
-        <div id="cabinLight" class="cabin-light"></div>
-        <div id="smoke" class="smoke"></div>
-        <div id="fireflies" class="fireflies"></div>
-      </div>
-      <div id="shimmer" class="shimmer fill"></div>
-      <div id="glitter" class="glitter"><div id="glitterA" class="glitter-a"></div><div id="glitterB" class="glitter-b"></div></div>
-      <div id="ripples" class="ripples fill"></div>
-      <div id="fogNear" class="fog-band fog-near"></div>
-      <div id="veil" class="veil fill"></div>
-      <div id="leaves" class="leaves fill"></div>
-      <div id="rain" class="rain fill"><div id="rain1" class="rain-layer"></div></div>
-      <div id="snow" class="snow fill"><div class="snow-sway fill"><div id="snow1" class="snow-layer"></div></div></div>
-      <div id="snowNear" class="snow-near fill"></div>
-      <div id="flash" class="flash fill"></div>
-      <div class="dim fill"></div>
-    </div>
-
     <div id="ui" class="ui">
       <header class="topbar">
         <div class="clock">
-          <div id="greeting" class="greeting"></div>
-          <div class="time-row"><span id="time" class="time"></span><span id="ampm" class="ampm"></span></div>
-          <div id="date" class="date"></div>
-          <div id="mood" class="mood"></div>
+          <div class="greeting" data-scene="greeting"></div>
+          <div class="time-row"><span class="time" data-scene="time"></span><span class="ampm" data-scene="ampm"></span></div>
+          <div class="date" data-scene="date"></div>
+          <div class="mood" data-scene="mood"></div>
         </div>
         <div class="top-right">
-          <div class="weather">
-            <div id="weatherIcon" class="weather-icon"></div>
-            <div>
-              <div id="weatherTemp" class="weather-temp"></div>
-              <div id="weatherDesc" class="weather-desc"></div>
-              <div id="weatherRange" class="weather-range"></div>
+          <div class="top-row">
+            <div class="weather" data-row="0" data-action="forecast" data-title="Weather" data-subtitle="The week ahead" data-accent="#7dd3fc">
+              <div class="weather-icon" data-scene="weather-icon"></div>
+              <div>
+                <div class="weather-temp" data-scene="weather-temp"></div>
+                <div class="weather-desc" data-scene="weather-desc"></div>
+                <div class="weather-range" data-scene="weather-range"></div>
+              </div>
             </div>
+            <div id="settingsButton" class="icon-button" data-row="0" data-action="settings" data-title="Settings"
+                 data-subtitle="Home button, idle screen and weather" data-accent="#94a3b8"></div>
           </div>
-          <div id="settingsButton" class="icon-button" data-row="0" data-action="settings" data-title="Settings"
-               data-subtitle="Home button, idle screen and weather" data-accent="#94a3b8"></div>
+          <div class="forecast" data-scene="forecast" data-from="tomorrow" data-days="4"></div>
         </div>
       </header>
 
@@ -131,12 +96,20 @@
       </div>
     </div>
 
+    <div id="forecast" class="overlay sheet">
+      <div class="sheet-card forecast-card">
+        <h2 class="sheet-title">The week ahead</h2>
+        <div class="forecast forecast-week" data-scene="forecast" data-days="7" data-style="week"></div>
+        <div class="set-footer"><div class="set-btn" data-row="0" data-action="close">Done</div></div>
+      </div>
+    </div>
+
     <div id="idle" class="idle">
       <div id="idleBlock" class="idle-block">
-        <div id="idleTime" class="idle-time"></div>
-        <div id="idleDate" class="idle-date"></div>
-        <div class="idle-weather"><span id="idleIcon" class="wi"></span><span id="idleWeather"></span></div>
-        <div id="idleMood" class="idle-mood"></div>
+        <div class="idle-time" data-scene="clock"></div>
+        <div class="idle-date" data-scene="date"></div>
+        <div class="idle-weather"><span class="wi" data-scene="weather-icon"></span><span data-scene="weather-line"></span></div>
+        <div class="idle-mood" data-scene="mood-text"></div>
       </div>
     </div>
 
@@ -154,6 +127,7 @@
   <script src="tv-apps.js"></script>
   <script src="glyphs.js"></script>
   <script src="art.js"></script>
+  <script src="scene.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

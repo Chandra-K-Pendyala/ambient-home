@@ -1,0 +1,12 @@
+{
+  "id": "com.local.ambientwallpaper",
+  "version": "0.1.0",
+  "vendor": "Personal",
+  "type": "web",
+  "main": "wallpaper.html",
+  "title": "Ambient Wallpaper",
+  "icon": "wallpaper-icon.png",
+  "largeIcon": "wallpaper-largeIcon.png",
+  "resolution": "1920x1080",
+  "requiredACG": []
+}

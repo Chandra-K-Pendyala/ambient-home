@@ -15,6 +15,7 @@
 </div>
 
 Ambient Home turns your TV's home screen into a living lakeside world that follows the real sun, moon, weather and seasons. You install it yourself in LG's Developer Mode, without rooting the TV, and the remote's Home button opens it instead of LG's home screen. Every way back to LG Home stays one press away.
+Only want the scenery? **Ambient Wallpaper** runs the living lakeside on its own, as a TV app or in any browser.
 
 > [!NOTE]
 > Ambient Home is a working prototype. The home screen, opening apps and inputs, and the Home button all run on a real TV. The *Continue watching* and *Home* rows are demo designs for a media server and Home Assistant.
@@ -22,6 +23,8 @@ Ambient Home turns your TV's home screen into a living lakeside world that follo
 ## ✨ Features
 
 - 🌅 **Living wallpaper**: dawn, day, golden hour, dusk and a starry night under the real moon; clear skies, clouds, rain, thunderstorms, snow and fog; spring blossom, autumn leaves and winter snow that settles on the land; birds, shooting stars and chimney smoke. Live weather comes from [Open-Meteo](https://open-meteo.com) (free, no account) once you add your coordinates; until then it shows demo weather.
+- 🗓️ **The week ahead**: the next four days sit under the current weather, and the whole week, with each day's range and chance of rain, is one press away.
+- 🌌 **Ambient Wallpaper**: the same living lake as its own app, with the clock, the weather and the next five days resting on the water.
 - 🧊 **Frosted-glass icons**: they rest on the lake, and on focus they lift, bloom into the app's brand colours and ripple the water. Snow caps pile up on them while it snows.
 - 🎮 **Quick inputs**: number keys on the remote switch HDMI inputs, and a games-console tile plays its own launch animation.
 - 📺 **Your real apps**: a script on your computer reads the TV's installed apps and inputs (read-only), so every tile opens the real thing.
@@ -40,6 +43,10 @@ Ambient Home turns your TV's home screen into a living lakeside world that follo
   <tr>
     <td width="50%"><img src="docs/screenshots/storm.jpg" alt="A thunderstorm at dusk with heavy rain"><br><sub>⛈️ A thunderstorm rolling in at dusk</sub></td>
     <td width="50%"><img src="docs/screenshots/dawn.jpg" alt="A foggy spring dawn with pink blossom"><br><sub>🌸 A foggy spring dawn</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/week.jpg" alt="The week ahead: a card per day with its weather, high and low, a colour bar for its range and the chance of rain"><br><sub>🗓️ The week ahead, one press away</sub></td>
+    <td width="50%"><img src="docs/screenshots/wallpaper.jpg" alt="Ambient Wallpaper at night: a full moon over the lake, the clock and the forecast resting on the water"><br><sub>🌌 Ambient Wallpaper: just the lake</sub></td>
   </tr>
 </table>
 
@@ -88,6 +95,8 @@ python3 -m http.server 8766 --bind 127.0.0.1 --directory prototype
 
 Open <http://127.0.0.1:8766> and play: arrows move, Enter opens, Esc goes back. **T** changes the time of day, **W** the weather, **S** the season, **D** runs a day time-lapse, **0** shows the frame rate and **H** hides the help bar.
 
+For Ambient Wallpaper, open <http://127.0.0.1:8766/wallpaper.html>: Enter hides or shows the clock, and a double-click fills the screen. It makes a calm second screen, too.
+
 ### 📺 Put it on your TV
 
 You need an LG webOS TV with **Developer Mode** turned on (LG's Developer Mode app, signed in with a free LG developer account, and *Key Server* on), plus a computer on the same network with **Node.js 22+** and **Python 3**.
@@ -101,7 +110,8 @@ You need an LG webOS TV with **Developer Mode** turned on (LG's Developer Mode a
    HOME_CONFIG.weather.longitude = 2.35;
    HOME_CONFIG.apps.iptv.appId = 'your.iptv.app.id';
    ```
-5. **Take over the Home button**: run `TV_HOST=<TV IP> scripts/tv-home.sh install`, then `scripts/tv-home.sh start`. The script header explains the one extra tool it needs (the Zig compiler, installed inside the project). `status`, `lg` and `remove` are there whenever you need them.
+5. **Just the wallpaper?** `scripts/tv-preview.sh --wallpaper` installs Ambient Wallpaper as its own app. It leaves the Home button alone; OK on the remote hides or shows the clock.
+6. **Take over the Home button**: run `TV_HOST=<TV IP> scripts/tv-home.sh install`, then `scripts/tv-home.sh start`. The script header explains the one extra tool it needs (the Zig compiler, installed inside the project). `status`, `lg` and `remove` are there whenever you need them.
 
 > [!TIP]
 > Developer Mode sessions expire. Extend yours in LG's Developer Mode app now and then: when a session runs out, the TV removes Developer Mode apps and Home goes back to LG Home.
@@ -110,7 +120,7 @@ You need an LG webOS TV with **Developer Mode** turned on (LG's Developer Mode a
 
 | Folder | What lives there |
 | :-- | :-- |
-| [`prototype/`](prototype) | Ambient Home itself: a web app in plain ES5, drawn for 1920×1080 |
+| [`prototype/`](prototype) | Both apps, in plain ES5 for 1920×1080: Ambient Home (`index.html`, `app.js`), Ambient Wallpaper (`wallpaper.html`, `wallpaper.js`) and the living lakeside they share (`scene.js`, `scene.css`) |
 | [`home-service/`](home-service) | Ambient Home's small on-TV service, which switches the Home button |
 | [`helper/`](helper) | Home Helper, reviewed and built from source; [every change from upstream](helper/README.md) |
 | [`scripts/`](scripts) | Preview, sync, build and install tools |
@@ -123,6 +133,10 @@ You need an LG webOS TV with **Developer Mode** turned on (LG's Developer Mode a
 - 🧱 **Locked-down install**: both packages install root-owned files that other apps on the TV can't change.
 - 🙈 **Your details stay yours**: pairing keys, your app list and `config.local.js` stay on your computer and TV, out of git.
 - 🌐 **Quiet on the network**: nothing is sent anywhere except optional weather requests to Open-Meteo. Home Helper talks only to the TV itself.
+
+## 🤖 How it was made
+
+Ambient Home was built in a few evenings of conversation with Claude Code. [The prompts, in order, and one prompt to start from](docs/HOW-IT-WAS-MADE.md) show how it came together.
 
 ## 🙏 Credits
 

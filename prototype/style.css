@@ -1,211 +1,5 @@
-/* Ambient home screen prototype.
-   TV rules: fixed 1920x1080 canvas, animate only transform and opacity,
-   no blur or backdrop-filter, every asset stored locally. */
-
-@font-face { font-family: 'Outfit'; font-weight: 300; src: url('fonts/outfit-300.ttf') format('truetype'); }
-@font-face { font-family: 'Outfit'; font-weight: 400; src: url('fonts/outfit-400.ttf') format('truetype'); }
-@font-face { font-family: 'Outfit'; font-weight: 500; src: url('fonts/outfit-500.ttf') format('truetype'); }
-@font-face { font-family: 'Outfit'; font-weight: 700; src: url('fonts/outfit-700.ttf') format('truetype'); }
-
-:root {
-  --fg: rgba(255, 255, 255, 0.92);
-  --fg-dim: rgba(255, 255, 255, 0.74);
-  --muted: rgba(255, 255, 255, 0.55);
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --edge: 96px;
-}
-
-* { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
-body {
-  font-family: 'Outfit', 'Helvetica Neue', Arial, sans-serif;
-  color: var(--fg);
-  -webkit-font-smoothing: antialiased;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-.stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; overflow: hidden; background: #000; }
-.fill { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
-
-/* ---------- Live wallpaper: a lakeside that follows the time, weather and season ---------- */
-/* Each sky runs down to the shoreline at 612px (56.7%); below it the lake mirrors the sky. The gradients darken
-   towards the top edge and towards the viewer, so the clock and the rows stay readable without an overlay layer,
-   and the water's streaks (--water, set by app.js) are part of the same background.
-   Layers that are off get display:none from app.js, so their animations stop. */
-#wallpaper { --water: none; }
-.sky { opacity: 0; transition: opacity 2.4s ease; background: var(--water) 0 612px / 1920px 468px no-repeat, var(--sky); }
-.sky.is-on { opacity: 1; }
-.sky[data-phase='dawn'] { --sky: linear-gradient(180deg, #101529 0%, #1d1f3a 8%, #2f2b4e 16%, #443865 24%, #503f6a 26%, #7a5273 34%, #a3657c 42%, #a96676 46%, #aa6e6a 50%, #a67558 56.6%, #815a51 56.7%, #583d41 62%, #332431 68%, #1e1723 76%, #0f0d17 84%, #08080e 92%, #030407 100%); }
-.sky[data-phase='morning'] { --sky: linear-gradient(180deg, #122e4a 0%, #1c4165 8%, #295783 16%, #3c78ad 26%, #5790bf 34%, #72a7d0 42%, #75a5c8 46%, #80a3bc 50%, #899ca7 56.6%, #657f90 56.7%, #445d6f 62%, #263d4f 68%, #172837 76%, #0c1824 84%, #070e15 92%, #03060a 100%); }
-.sky[data-phase='day'] { --sky: linear-gradient(180deg, #0e3153 0%, #16426d 8%, #1f568a 16%, #2d73b2 26%, #2f75b5 28%, #4184bf 34%, #5897cc 42%, #5d92bc 48%, #6593b7 50%, #7693a5 56.6%, #597b93 56.7%, #3a5972 62%, #1e3a51 68%, #13273a 76%, #0a1827 84%, #050e17 92%, #02070c 100%); }
-.sky[data-phase='golden'] { --sky: linear-gradient(180deg, #171e3b 0%, #2c2b4d 8%, #473b61 16%, #684c76 24%, #755477 26%, #9d6a6c 34%, #c57f61 42%, #c87f55 46%, #bf8352 50%, #ad834c 56.6%, #996d45 56.7%, #6c4a3a 62%, #422b2d 68%, #281c22 76%, #140f19 84%, #0b090f 92%, #040407 100%); }
-.sky[data-phase='dusk'] { --sky: linear-gradient(180deg, #090c1c 0%, #11122a 8%, #1d193a 16%, #2b224d 24%, #322552 26%, #4c2e5a 34%, #653861 42%, #67385f 44%, #794057 50%, #82444c 56.6%, #653643 56.7%, #432535 62%, #251627 68%, #160f1c 76%, #0b0913 84%, #06050b 92%, #020205 100%); }
-.sky[data-phase='night'] { --sky: linear-gradient(180deg, #020307 0%, #03050c 8%, #050813 16%, #070c1d 26%, #0a1025 34%, #0d142d 42%, #0d142d 46%, #101730 50%, #131a32 56.6%, #0e1426 56.7%, #0a0e1d 62%, #060913 68%, #060812 70%, #04070e 76%, #03050a 84%, #020306 92%, #010204 100%); }
-
-.stars, .fog-band, .shimmer, .ripples, .cabin-light, .smoke, .fireflies, .leaves, .rain, .snow {
-  opacity: 0; transition: opacity 2.4s ease;
-}
-.star { position: absolute; border-radius: 50%; background: #fff; }
-.star.twinkle { animation: twinkle 4s ease-in-out infinite alternate; }
-
-.shooting { position: absolute; left: 0; top: 0; width: 0; height: 0; }
-.shooting i {
-  position: absolute; left: 0; top: -1px; width: 260px; height: 2px; border-radius: 2px; opacity: 0;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.95));
-}
-.shooting.is-on i { animation: shoot 1.2s ease-in forwards; }
-
-/* Sun and moon are clipped at the shoreline; the lake shows their light as a glitter path instead. */
-.celestial { position: absolute; left: 0; top: 0; width: 1920px; height: 612px; overflow: hidden; transition: transform 1.8s var(--ease); will-change: transform; }
-.sun {
-  position: absolute; left: 0; top: 0; width: 360px; height: 360px; border-radius: 50%; opacity: 0;
-  background: radial-gradient(circle, rgba(255, 252, 236, 0.95) 0%, rgba(255, 247, 220, 0.78) 9%,
-    rgba(255, 240, 205, 0.3) 25%, rgba(255, 238, 205, 0.08) 44%, rgba(255, 238, 205, 0) 64%);
-  transition: opacity 2.4s ease, transform 3s var(--ease);
-}
-.moon { position: absolute; left: 0; top: 0; width: 260px; height: 260px; opacity: 0; transition: opacity 2.4s ease, transform 3s var(--ease); }
-.moon-glow {
-  position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%;
-  background: radial-gradient(circle, rgba(200, 214, 255, 0.32) 0%, rgba(200, 214, 255, 0.1) 32%, rgba(200, 214, 255, 0) 62%);
-}
-.moon-disc { position: absolute; left: 84px; top: 84px; width: 92px; height: 92px; }
-.moon-disc svg { display: block; width: 100%; height: 100%; }
-
-
-.bolt { position: absolute; left: 0; top: 150px; width: 300px; height: 460px; opacity: 0; }
-.bolt svg { display: block; }
-.bolt.is-on { animation: bolt 0.9s ease-out; }
-.flash { opacity: 0; background: #e3e9ff; }
-.flash.is-on { animation: flash 0.9s ease-out; }
-
-.clouds { opacity: 0; color: #fff; transition: opacity 2.4s ease, transform 1.8s var(--ease); will-change: transform; }
-.cloud { position: absolute; left: 0; animation: cloud-drift 200s linear infinite; }
-.cloud svg { display: block; width: 100%; height: auto; }
-
-.birds { position: absolute; left: 0; top: 200px; display: none; transition: opacity 1.2s ease; }
-.birds.is-leaving { opacity: 0; }
-.birds.is-flying { display: block; animation: fly-ltr 34s linear forwards; }
-.birds.is-flying.is-rtl { animation-name: fly-rtl; }
-.flock-bob { position: relative; animation: bob 3.4s ease-in-out infinite alternate; }
-.bird { position: absolute; width: 34px; height: 14px; animation: flap 0.46s ease-in-out infinite alternate; }
-.bird svg { display: block; width: 100%; height: 100%; }
-
-/* Landscape layers: 2080px wide so the parallax pan never shows an edge. */
-/* Parallax layers keep their own GPU layer (will-change), so moving focus never forces a redraw. */
-.layer { position: absolute; left: -80px; top: 0; width: 2080px; height: 1080px; transition: transform 1.8s var(--ease); will-change: transform; }
-.layer svg { position: absolute; left: 0; display: block; }
-/* Winter snow on the land sits on its own layers, so it settles and melts with an opacity fade alone. */
-.land-snow { position: absolute; left: 0; top: 0; opacity: 0; transition: opacity 5s ease; }
-
-.fog-band {
-  position: absolute; left: -25%; width: 150%;
-  background: radial-gradient(50% 50% at 50% 50%, rgba(205, 212, 224, 0.5), rgba(205, 212, 224, 0));
-  animation: fog-drift 36s ease-in-out infinite alternate;
-}
-.fog-far { top: 430px; height: 240px; }
-.fog-near {
-  top: 560px; height: 300px; animation-duration: 52s; animation-direction: alternate-reverse;
-  background: radial-gradient(50% 50% at 50% 50%, rgba(205, 212, 224, 0.3), rgba(205, 212, 224, 0));
-}
-
-.cabin-glow {
-  position: absolute; left: 1420px; top: 490px; width: 300px; height: 160px; border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(255, 186, 102, 0.36), rgba(255, 186, 102, 0));
-  animation: hearth 5s ease-in-out infinite alternate;
-}
-.cabin-win { position: absolute; background: #ffc56e; box-shadow: 0 0 10px rgba(255, 190, 100, 0.9); }
-.cabin-door { background: #e9a04f; opacity: 0.7; }
-.cabin-trail { position: absolute; left: 1500px; top: 613px; opacity: 0.6; }
-.cabin-trail svg { display: block; }
-
-.smoke { position: absolute; left: 1583px; top: 497px; width: 30px; height: 30px; }
-.puff {
-  position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%; opacity: 0;
-  background: radial-gradient(circle, rgba(226, 230, 238, 0.42), rgba(226, 230, 238, 0) 70%);
-  animation: puff 8s linear infinite;
-}
-
-.ff {
-  position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; opacity: 0;
-  background: radial-gradient(circle, #fff7c2 0%, rgba(246, 226, 122, 0.85) 22%, rgba(246, 226, 122, 0) 66%);
-  animation: firefly 9s ease-in-out infinite;
-}
-
-.shim { position: absolute; height: 2px; border-radius: 2px; animation: shim 18s ease-in-out infinite alternate; }
-
-.glitter { position: absolute; left: 0; top: 614px; width: 260px; height: 340px; opacity: 0; transition: opacity 2.4s ease, transform 3s var(--ease); }
-.glitter-a, .glitter-b { position: absolute; top: 0; left: 0; }
-.glitter svg { display: block; }
-.glitter-a { animation: glint 1.6s ease-in-out infinite alternate; }
-.glitter-b { animation: glint 1.6s ease-in-out -0.8s infinite alternate-reverse; }
-.is-lapse .sun, .is-lapse .moon { transition: opacity 2.4s ease, transform 0.15s linear; }
-.is-lapse .glitter { transition: opacity 2.4s ease, transform 0.15s linear; }
-
-.ripple {
-  position: absolute; width: 54px; height: 14px; margin: -7px 0 0 -27px; border-radius: 50%;
-  border: 2px solid rgba(220, 230, 245, 0.55); animation: ripple 1.9s ease-out infinite;
-}
-
-.veil { opacity: 0; transition: opacity 2.4s ease; }
-
-.leaf { position: absolute; top: -40px; width: 22px; height: 22px; animation: leaf-drift 18s ease-in-out infinite; }
-.leaf svg { display: block; width: 100%; height: 100%; }
-
-/* Layers start one tile above the visible area so the slide never uncovers an edge. */
-.rain { transform: rotate(12deg); }
-.rain-layer { position: absolute; left: -120px; top: -620px; width: 2160px; height: 1900px; animation: fall-420 0.8s linear infinite; }
-.rain.is-heavy .rain-layer { animation-duration: 0.55s; }
-
-.snow-sway { animation: sway 7s ease-in-out infinite alternate; }
-.snow-layer { position: absolute; left: -40px; top: -490px; width: 2000px; height: 1580px; animation: fall-480 19s linear infinite; }
-/* Big, soft flakes close to the viewer, for depth. */
-.snow-near { opacity: 0; transition: opacity 2.4s ease; }
-.flake {
-  position: absolute; top: -30px; border-radius: 50%; animation: flake-drift 9s linear infinite;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0, rgba(255, 255, 255, 0.55) 45%, rgba(255, 255, 255, 0) 72%);
-}
-
-/* Automatic quality (app.js): each step hides the next most costly extras when the TV can't keep up. */
-.q1 #snowNear, .q1 #shimmer, .q1 .birds, .q1 .icon-reflect { display: none; }
-.q2 #leaves, .q2 #fireflies, .q2 #glitter, .q2 #smoke, .q2 .icon-water { display: none; }
-.q2 .cloud, .q2 .star.twinkle { animation-play-state: paused; }
-.q3 #clouds, .q3 #fogFar, .q3 #fogNear { display: none; }
-
-.dim { opacity: 0; background: rgba(4, 6, 12, 0.6); transition: opacity 0.5s ease; }
-.on-page-b .dim { opacity: 1; }
-
-@keyframes twinkle { from { opacity: 0.9; } to { opacity: 0.15; } }
-@keyframes shoot { 0% { transform: translateX(-260px); opacity: 0; } 18% { opacity: 1; } 100% { transform: translateX(460px); opacity: 0; } }
-@keyframes bolt { 0% { opacity: 0; } 6% { opacity: 1; } 14% { opacity: 0.15; } 22% { opacity: 0.9; } 100% { opacity: 0; } }
-@keyframes flash { 0% { opacity: 0; } 6% { opacity: 0.3; } 14% { opacity: 0.04; } 22% { opacity: 0.2; } 100% { opacity: 0; } }
-@keyframes cloud-drift { from { transform: translateX(-720px); } to { transform: translateX(2000px); } }
-@keyframes fly-ltr { from { transform: translateX(-220px); } to { transform: translateX(2140px); } }
-@keyframes fly-rtl { from { transform: translateX(2140px) scaleX(-1); } to { transform: translateX(-220px) scaleX(-1); } }
-@keyframes bob { from { transform: translateY(-10px); } to { transform: translateY(10px); } }
-@keyframes flap { from { transform: scaleY(1); } to { transform: scaleY(-0.45); } }
-@keyframes fog-drift { from { transform: translateX(-140px); } to { transform: translateX(140px); } }
-@keyframes hearth { from { opacity: 0.8; } to { opacity: 1; } }
-@keyframes puff { 0% { transform: translate(0, 0) scale(0.5); opacity: 0; } 15% { opacity: 0.8; } 100% { transform: translate(34px, -150px) scale(3.2); opacity: 0; } }
-@keyframes firefly {
-  0% { transform: translate(0, 0); opacity: 0; } 15% { opacity: 1; } 30% { transform: translate(26px, -14px); opacity: 0.2; }
-  45% { opacity: 1; } 60% { transform: translate(-12px, -30px); opacity: 0.1; } 75% { opacity: 0.9; } 100% { transform: translate(18px, 8px); opacity: 0; }
-}
-@keyframes shim { from { transform: translateX(-50px); opacity: 0.2; } to { transform: translateX(50px); opacity: 1; } }
-@keyframes glint { from { opacity: 0.15; } to { opacity: 0.85; } }
-@keyframes ripple { from { transform: scale(0.15); opacity: 0.9; } to { transform: scale(1.7); opacity: 0; } }
-@keyframes leaf-drift {
-  0% { transform: translate(0, 0) rotate(0deg) scaleX(1); } 20% { transform: translate(-40px, 232px) rotate(100deg) scaleX(-0.4); }
-  40% { transform: translate(-150px, 464px) rotate(200deg) scaleX(1); } 60% { transform: translate(-230px, 696px) rotate(290deg) scaleX(-0.4); }
-  80% { transform: translate(-370px, 928px) rotate(400deg) scaleX(1); } 100% { transform: translate(-460px, 1160px) rotate(500deg) scaleX(-0.4); }
-}
-@keyframes sway { from { transform: translateX(-18px); } to { transform: translateX(18px); } }
-@keyframes fall-480 { from { transform: translateY(0); } to { transform: translateY(480px); } }
-@keyframes fall-420 { from { transform: translateY(0); } to { transform: translateY(420px); } }
-@keyframes flake-drift {
-  0% { transform: translate(0, 0); } 25% { transform: translate(-22px, 285px); } 50% { transform: translate(16px, 570px); }
-  75% { transform: translate(-16px, 855px); } 100% { transform: translate(10px, 1140px); }
-}
+/* Ambient Home: the home screen on top of the living lakeside (scene.css): top bar, rows, panels, overlays and
+   the idle screen. TV rules as in scene.css: animate only transform and opacity, no blur. */
 
 /* ---------- Top bar ---------- */
 .ui { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transition: transform 6s ease-in-out; }
@@ -213,22 +7,18 @@ body {
 .topbar { position: absolute; left: var(--edge); right: var(--edge); top: 52px; display: flex; justify-content: space-between; align-items: flex-start; }
 /* A soft shadow keeps text readable over any sky; it is painted once, never animated. */
 .topbar, .focus-title, .row-label, .more-hint { text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45); }
-.greeting { margin: 0 0 6px 4px; font-size: 22px; letter-spacing: 0.32em; text-transform: uppercase; color: var(--muted); }
-.time-row { display: flex; align-items: baseline; }
-.time { font-size: 132px; font-weight: 300; line-height: 1; letter-spacing: -0.02em; }
-.ampm { margin-left: 14px; font-size: 40px; color: var(--fg-dim); }
-.date { margin: 12px 0 0 4px; font-size: 30px; color: var(--fg-dim); }
-.mood { display: flex; align-items: center; margin: 14px 0 0 4px; font-size: 23px; color: var(--muted); }
-.mood-icon { width: 28px; height: 28px; margin-right: 12px; color: var(--fg-dim); }
-.mood-icon svg { display: block; width: 100%; height: 100%; }
-
-.top-right { display: flex; align-items: center; margin-top: 24px; }
-.weather { display: flex; align-items: center; margin-right: 44px; }
-.weather-icon { width: 86px; height: 86px; margin-right: 20px; }
-.weather-icon svg, .wi svg { display: block; width: 100%; height: 100%; }
-.weather-temp { font-size: 62px; font-weight: 300; line-height: 1; }
-.weather-desc { margin-top: 6px; font-size: 26px; color: var(--fg-dim); }
-.weather-range { margin-top: 2px; font-size: 21px; color: var(--muted); }
+.top-right { display: flex; flex-direction: column; align-items: flex-end; margin-top: 24px; }
+.top-row { display: flex; align-items: center; }
+/* The weather opens the week ahead; its focus ring fades in like the settings button's. */
+.top-row .weather { position: relative; margin: -10px 18px -10px 0; padding: 10px 26px 10px 14px; transition: transform 0.22s var(--ease); }
+.top-row .weather::before {
+  content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; border-radius: 30px; opacity: 0;
+  background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.85); transition: opacity 0.18s ease;
+}
+.top-row .weather > * { position: relative; }
+.top-row .weather.is-focused { transform: scale(1.05); }
+.top-row .weather.is-focused::before { opacity: 1; }
+.top-right > .forecast { margin-top: 30px; color: var(--fg); }
 
 .icon-button {
   position: relative; width: 84px; height: 84px; border-radius: 50%;
@@ -572,29 +362,13 @@ body {
 .wi { width: 34px; height: 34px; margin-right: 12px; }
 .idle-mood { margin-top: 8px; font-size: 24px; color: #4b515b; }
 
-/* ---------- Messages ---------- */
-.toast {
-  position: absolute; left: 50%; top: 40px; padding: 16px 30px; border-radius: 999px; white-space: nowrap;
-  background: rgba(16, 20, 28, 0.94); border: 1px solid rgba(255, 255, 255, 0.1); font-size: 24px;
-  opacity: 0; transform: translate(-50%, -24px); transition: opacity 0.3s ease, transform 0.3s var(--ease);
-}
-.toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+/* Quality steps (scene.js) for the home screen's own extras. */
+.q1 .icon-reflect { display: none; }
+.q2 .icon-water { display: none; }
 
-/* Browser-only help bar: sits outside the TV canvas. */
-.help {
-  position: fixed; left: 50%; bottom: 14px; z-index: 10; padding: 8px 16px; border-radius: 999px; white-space: nowrap;
-  transform: translateX(-50%); background: rgba(20, 24, 32, 0.88); color: rgba(255, 255, 255, 0.85);
-  font: 13px/1.4 -apple-system, 'Helvetica Neue', Arial, sans-serif; transition: opacity 0.6s ease;
-}
-.help.is-faded { opacity: 0; }
-.help-remote, .on-tv .help-keys { display: none; }
-.on-tv .help-remote { display: inline; }
-.on-tv .help { bottom: 28px; padding: 12px 26px; font-size: 24px; }
+.dim { opacity: 0; background: rgba(4, 6, 12, 0.6); transition: opacity 0.5s ease; }
+.on-page-b .dim { opacity: 1; }
 
-/* Frame-rate meter (0 on the remote), for checking smoothness on the TV. */
-.fps {
-  position: absolute; right: 24px; bottom: 18px; display: none; padding: 8px 14px; border-radius: 10px;
-  background: rgba(0, 0, 0, 0.7); color: #9cf59c; font: 22px/1.2 Menlo, 'DejaVu Sans Mono', monospace;
-}
-.fps.is-on { display: block; }
 .is-sleeping .fps { visibility: hidden; }
+
+.forecast-card { width: 1560px; }

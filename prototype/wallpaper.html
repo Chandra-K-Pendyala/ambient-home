@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ambient Wallpaper</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="scene.css">
+  <link rel="stylesheet" href="wallpaper.css">
+</head>
+<body>
+  <div id="stage" class="stage">
+    <div id="info" class="info">
+      <div class="info-clock">
+        <div class="greeting" data-scene="greeting"></div>
+        <div class="time-row"><span class="time" data-scene="time"></span><span class="ampm" data-scene="ampm"></span></div>
+        <div class="date" data-scene="date"></div>
+        <div class="mood" data-scene="mood"></div>
+      </div>
+      <div class="info-weather">
+        <div class="weather">
+          <div class="weather-icon" data-scene="weather-icon"></div>
+          <div>
+            <div class="weather-temp" data-scene="weather-temp"></div>
+            <div class="weather-desc" data-scene="weather-desc"></div>
+            <div class="weather-range" data-scene="weather-range"></div>
+          </div>
+        </div>
+        <div class="forecast" data-scene="forecast" data-from="tomorrow" data-days="5"></div>
+      </div>
+    </div>
+    <div id="toast" class="toast"></div>
+    <div id="fps" class="fps"></div>
+  </div>
+
+  <div id="help" class="help">
+    <span class="help-keys">Enter = show or hide the clock &middot; T = time of day &middot; D = day time-lapse &middot; W = weather &middot; S = season &middot; 0 = frame rate &middot; double-click = full screen &middot; H = hide this</span>
+    <span class="help-remote">OK = show or hide the clock &middot; Red or 6 = time of day &middot; Green or 7 = weather &middot; Yellow or 8 = season &middot; Blue or 9 = day time-lapse &middot; 0 = frame rate</span>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="config.local.js"></script>
+  <script src="art.js"></script>
+  <script src="scene.js"></script>
+  <script src="wallpaper.js"></script>
+</body>
+</html>

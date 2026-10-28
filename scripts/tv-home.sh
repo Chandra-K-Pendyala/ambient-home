@@ -13,7 +13,8 @@
 #   scripts/tv-home.sh start     Home opens Ambient Home; from now on Helper starts by itself when the TV starts
 #   scripts/tv-home.sh lg        Home opens LG Home again, until start
 #   scripts/tv-home.sh status    is Helper running?
-#   scripts/tv-home.sh remove    stop Helper and its start with the TV, and uninstall both apps
+#   scripts/tv-home.sh remove    stop Helper and its start with the TV, and uninstall Helper, Ambient Home and
+#                                Ambient Wallpaper
 #
 # One-time setup: steps 1-4 at the top of scripts/tv-preview.sh, then
 #   5. Zig 0.14.1, which compiles Helper's two small C programs, inside this project:
@@ -53,6 +54,7 @@ build() {
   fi
   scripts/tv-preview.sh --build
   local app=build/tv/helper-app svc=build/tv/helper-service
+  rm -rf "$app" "$svc" build/tv/${HELPER}_*.ipk
   mkdir -p "$app/state" "$svc/state"
   # Helper's JavaScript runs unchanged on TVs with Node 10 or newer (upstream converts it for Node 0.12 TVs).
   cp helper/app/*.js helper/app/*.json helper/app/*.png "$app/"
@@ -168,7 +170,9 @@ case "${1:-}" in
       stop_helper
       "$BIN/ares-install" --device "$DEVICE" --remove "$HELPER"
     fi
-    if installed "$APP_ID"; then "$BIN/ares-install" --device "$DEVICE" --remove "$APP_ID"; fi
+    for app in "$APP_ID" com.local.ambientwallpaper; do
+      if installed "$app"; then "$BIN/ares-install" --device "$DEVICE" --remove "$app"; fi
+    done
     rm -rf build/helper-setup
     echo "Removed. The TV is back to LG's own Home. The pairing keys stay in .lgtv-key.json; delete that file to remove them from this Mac."
     ;;

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 130">
+  <!-- App icon for Ambient Wallpaper: the lake at golden hour. Rendered to wallpaper-icon.png and wallpaper-largeIcon.png. -->
+  <defs>
+    <clipPath id="tile"><rect width="130" height="130" rx="30"/></clipPath>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c2b4d"/><stop offset=".5" stop-color="#9d6a6c"/><stop offset="1" stop-color="#e0a060"/>
+    </linearGradient>
+    <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a5a52"/><stop offset="1" stop-color="#1a1121"/>
+    </linearGradient>
+    <radialGradient id="glow"><stop offset="0" stop-color="#ffe7b0" stop-opacity=".75"/><stop offset="1" stop-color="#ffe7b0" stop-opacity="0"/></radialGradient>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="130" height="82" fill="url(#sky)"/>
+    <rect y="82" width="130" height="48" fill="url(#lake)"/>
+    <circle cx="64" cy="64" r="34" fill="url(#glow)"/>
+    <circle cx="64" cy="64" r="13" fill="#fff4d6"/>
+    <path d="M0 82L22 60 34 68 52 38 70 62 82 52 100 66 116 56 130 64V82Z" fill="#835d7c"/>
+    <path d="M52 38l-6 10 4-2 2 3 3-4 3 2zM82 52l-4 6 3-1 2 2 2-3z" fill="#ffe1c4" opacity=".9"/>
+    <path d="M0 82c18-6 36-8 58-6s44 2 72-4v10H0z" fill="#302237"/>
+    <path d="M24 76l4-10 4 10zM31 77l5-13 5 13zM96 76l4-11 4 11zM103 75l5-14 5 14z" fill="#302237"/>
+    <g stroke="#ffd9a0" stroke-linecap="round" opacity=".85"><path d="M60 88h8M57 95h14M55 103h18M58 112h12" stroke-width="1.6"/></g>
+  </g>
+</svg>
