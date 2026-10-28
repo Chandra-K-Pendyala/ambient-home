@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home · Ambient prototype</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="stage" class="stage">
+    <div id="wallpaper" class="fill" aria-hidden="true">
+      <div class="sky fill" data-phase="dawn"></div>
+      <div class="sky fill" data-phase="morning"></div>
+      <div class="sky fill" data-phase="day"></div>
+      <div class="sky fill" data-phase="golden"></div>
+      <div class="sky fill" data-phase="dusk"></div>
+      <div class="sky fill" data-phase="night"></div>
+      <div id="stars" class="stars fill"></div>
+      <div id="shooting" class="shooting"><i></i></div>
+      <div id="celestial" class="celestial" data-depth="0.04">
+        <div id="sun" class="sun"></div>
+        <div id="moon" class="moon"><div id="moonGlow" class="moon-glow"></div><div id="moonDisc" class="moon-disc"></div></div>
+      </div>
+      <div id="bolt" class="bolt"></div>
+      <div id="clouds" class="clouds fill" data-depth="0.08"></div>
+      <div id="birds" class="birds"></div>
+      <div id="farLayer" class="layer" data-depth="0.16"></div>
+      <div id="fogFar" class="fog-band fog-far"></div>
+      <div id="midLayer" class="layer" data-depth="0.3"></div>
+      <div id="nearLayer" class="layer" data-depth="0.5">
+        <div id="shore"></div>
+        <div id="nearSnow" class="land-snow"></div>
+        <div id="cabinLight" class="cabin-light"></div>
+        <div id="smoke" class="smoke"></div>
+        <div id="fireflies" class="fireflies"></div>
+      </div>
+      <div id="shimmer" class="shimmer fill"></div>
+      <div id="glitter" class="glitter"><div id="glitterA" class="glitter-a"></div><div id="glitterB" class="glitter-b"></div></div>
+      <div id="ripples" class="ripples fill"></div>
+      <div id="fogNear" class="fog-band fog-near"></div>
+      <div id="veil" class="veil fill"></div>
+      <div id="leaves" class="leaves fill"></div>
+      <div id="rain" class="rain fill"><div id="rain1" class="rain-layer"></div></div>
+      <div id="snow" class="snow fill"><div class="snow-sway fill"><div id="snow1" class="snow-layer"></div></div></div>
+      <div id="snowNear" class="snow-near fill"></div>
+      <div id="flash" class="flash fill"></div>
+      <div class="dim fill"></div>
+    </div>
+
+    <div id="ui" class="ui">
+      <header class="topbar">
+        <div class="clock">
+          <div id="greeting" class="greeting"></div>
+          <div class="time-row"><span id="time" class="time"></span><span id="ampm" class="ampm"></span></div>
+          <div id="date" class="date"></div>
+          <div id="mood" class="mood"></div>
+        </div>
+        <div class="top-right">
+          <div class="weather">
+            <div id="weatherIcon" class="weather-icon"></div>
+            <div>
+              <div id="weatherTemp" class="weather-temp"></div>
+              <div id="weatherDesc" class="weather-desc"></div>
+              <div id="weatherRange" class="weather-range"></div>
+            </div>
+          </div>
+          <div id="settingsButton" class="icon-button" data-row="0" data-action="settings" data-title="Settings"
+               data-subtitle="Home button, idle screen and weather" data-accent="#94a3b8"></div>
+        </div>
+      </header>
+
+      <section id="pageA" class="page page-a is-active">
+        <div id="focusBox" class="focus-title">
+          <div id="focusTitle" class="focus-title-main"></div>
+          <div id="focusSubtitle" class="focus-title-sub"></div>
+        </div>
+        <div id="appsLabel" class="row-label">Apps</div>
+        <div id="appsRow" class="row"><div id="appsTrack" class="track"></div></div>
+        <div id="inputsLabel" class="row-label">Inputs</div>
+        <div id="inputsRow" class="row"><div id="inputsTrack" class="track"></div></div>
+        <div class="more-hint">&darr;&nbsp; Continue watching &middot; Home</div>
+      </section>
+
+      <section id="pageB" class="page page-b">
+        <div id="mediaLabel" class="row-label">Continue watching<span id="mediaChip" class="chip"></span></div>
+        <div id="mediaRow" class="row"><div id="mediaTrack" class="track"></div></div>
+        <div id="homeLabel" class="row-label">Home<span id="homeChip" class="chip"></span></div>
+        <div id="homeRow" class="row"><div id="homeTrack" class="track"></div></div>
+        <div class="more-hint">&uarr;&nbsp; Apps &middot; Inputs</div>
+      </section>
+    </div>
+
+    <div id="launch" class="overlay launch">
+      <div id="launchFx" class="launch-fx"></div>
+      <div id="launchArt" class="launch-art"></div>
+      <div id="launchTitle" class="launch-title"></div>
+      <div id="launchSub" class="launch-sub"></div>
+      <div class="launch-bar"><i></i></div>
+      <div id="launchNote" class="launch-note"></div>
+    </div>
+
+    <div id="allApps" class="overlay sheet">
+      <div class="sheet-card">
+        <h2 class="sheet-title">All apps</h2>
+        <div id="allAppsGrid" class="grid"></div>
+      </div>
+    </div>
+
+    <div id="settings" class="overlay sheet">
+      <div class="sheet-card settings-card">
+        <h2 class="sheet-title">Home settings</h2>
+        <div class="set-label">Home button opens</div>
+        <div class="seg">
+          <div class="seg-option is-selected" data-row="0" data-action="seg" data-group="home" data-value="ours">This home screen</div>
+          <div class="seg-option" data-row="0" data-action="seg" data-group="home" data-value="lg">LG Home</div>
+        </div>
+        <p id="homeNote" class="set-note"></p>
+        <div class="set-row"><div class="set-btn" data-row="1" data-action="lghome">Open LG Home once</div></div>
+        <div class="set-label">Idle screen after</div>
+        <div class="seg">
+          <div class="seg-option is-selected" data-row="2" data-action="seg" data-group="idle" data-value="1">1 min</div>
+          <div class="seg-option" data-row="2" data-action="seg" data-group="idle" data-value="5">5 min</div>
+          <div class="seg-option" data-row="2" data-action="seg" data-group="idle" data-value="10">10 min</div>
+          <div class="seg-option" data-row="2" data-action="seg" data-group="idle" data-value="0">Off</div>
+        </div>
+        <div class="set-label">Weather</div>
+        <div class="set-item" data-row="3" data-action="weatherloc"><span>Location</span><span class="set-value">Not set · demo weather</span></div>
+        <p class="set-hint">Remote shortcuts: hold Back to open LG Home once. Press Home three times to switch to LG Home until you turn this screen back on.</p>
+        <div class="set-footer"><div class="set-btn" data-row="4" data-action="close">Done</div></div>
+      </div>
+    </div>
+
+    <div id="idle" class="idle">
+      <div id="idleBlock" class="idle-block">
+        <div id="idleTime" class="idle-time"></div>
+        <div id="idleDate" class="idle-date"></div>
+        <div class="idle-weather"><span id="idleIcon" class="wi"></span><span id="idleWeather"></span></div>
+        <div id="idleMood" class="idle-mood"></div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <div id="fps" class="fps"></div>
+  </div>
+
+  <div id="help" class="help">
+    <span class="help-keys">Arrows move &middot; Enter = OK &middot; Esc = Back &middot; 1&ndash;3 = inputs &middot; T = time of day &middot; D = day time-lapse &middot; W = weather &middot; S = season &middot; 0 = frame rate &middot; I = idle screen &middot; H = hide this</span>
+    <span class="help-remote">Red or 6 = time of day &middot; Green or 7 = weather &middot; Yellow or 8 = season &middot; Blue or 9 = day time-lapse &middot; 0 = frame rate &middot; 1&ndash;3 = inputs</span>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="config.local.js"></script>
+  <script src="tv-apps.js"></script>
+  <script src="glyphs.js"></script>
+  <script src="art.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

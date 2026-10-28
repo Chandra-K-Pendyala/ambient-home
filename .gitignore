@@ -1,0 +1,23 @@
+# TV pairing keys and credentials: never commit
+.lgtv-key.json
+.env
+*.pem
+*.key
+
+# Build output and tool environments
+build/
+dist/
+*.ipk
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.log
+
+# macOS
+.DS_Store
+
+# Your TV's apps and inputs (fetched by scripts/tv-sync-apps.mjs) and your own settings
+prototype/tv-apps.js
+prototype/tv-icons/
+prototype/config.local.js

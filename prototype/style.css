@@ -1,0 +1,600 @@
+/* Ambient home screen prototype.
+   TV rules: fixed 1920x1080 canvas, animate only transform and opacity,
+   no blur or backdrop-filter, every asset stored locally. */
+
+@font-face { font-family: 'Outfit'; font-weight: 300; src: url('fonts/outfit-300.ttf') format('truetype'); }
+@font-face { font-family: 'Outfit'; font-weight: 400; src: url('fonts/outfit-400.ttf') format('truetype'); }
+@font-face { font-family: 'Outfit'; font-weight: 500; src: url('fonts/outfit-500.ttf') format('truetype'); }
+@font-face { font-family: 'Outfit'; font-weight: 700; src: url('fonts/outfit-700.ttf') format('truetype'); }
+
+:root {
+  --fg: rgba(255, 255, 255, 0.92);
+  --fg-dim: rgba(255, 255, 255, 0.74);
+  --muted: rgba(255, 255, 255, 0.55);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --edge: 96px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+body {
+  font-family: 'Outfit', 'Helvetica Neue', Arial, sans-serif;
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+.fill { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+
+/* ---------- Live wallpaper: a lakeside that follows the time, weather and season ---------- */
+/* Each sky runs down to the shoreline at 612px (56.7%); below it the lake mirrors the sky. The gradients darken
+   towards the top edge and towards the viewer, so the clock and the rows stay readable without an overlay layer,
+   and the water's streaks (--water, set by app.js) are part of the same background.
+   Layers that are off get display:none from app.js, so their animations stop. */
+#wallpaper { --water: none; }
+.sky { opacity: 0; transition: opacity 2.4s ease; background: var(--water) 0 612px / 1920px 468px no-repeat, var(--sky); }
+.sky.is-on { opacity: 1; }
+.sky[data-phase='dawn'] { --sky: linear-gradient(180deg, #101529 0%, #1d1f3a 8%, #2f2b4e 16%, #443865 24%, #503f6a 26%, #7a5273 34%, #a3657c 42%, #a96676 46%, #aa6e6a 50%, #a67558 56.6%, #815a51 56.7%, #583d41 62%, #332431 68%, #1e1723 76%, #0f0d17 84%, #08080e 92%, #030407 100%); }
+.sky[data-phase='morning'] { --sky: linear-gradient(180deg, #122e4a 0%, #1c4165 8%, #295783 16%, #3c78ad 26%, #5790bf 34%, #72a7d0 42%, #75a5c8 46%, #80a3bc 50%, #899ca7 56.6%, #657f90 56.7%, #445d6f 62%, #263d4f 68%, #172837 76%, #0c1824 84%, #070e15 92%, #03060a 100%); }
+.sky[data-phase='day'] { --sky: linear-gradient(180deg, #0e3153 0%, #16426d 8%, #1f568a 16%, #2d73b2 26%, #2f75b5 28%, #4184bf 34%, #5897cc 42%, #5d92bc 48%, #6593b7 50%, #7693a5 56.6%, #597b93 56.7%, #3a5972 62%, #1e3a51 68%, #13273a 76%, #0a1827 84%, #050e17 92%, #02070c 100%); }
+.sky[data-phase='golden'] { --sky: linear-gradient(180deg, #171e3b 0%, #2c2b4d 8%, #473b61 16%, #684c76 24%, #755477 26%, #9d6a6c 34%, #c57f61 42%, #c87f55 46%, #bf8352 50%, #ad834c 56.6%, #996d45 56.7%, #6c4a3a 62%, #422b2d 68%, #281c22 76%, #140f19 84%, #0b090f 92%, #040407 100%); }
+.sky[data-phase='dusk'] { --sky: linear-gradient(180deg, #090c1c 0%, #11122a 8%, #1d193a 16%, #2b224d 24%, #322552 26%, #4c2e5a 34%, #653861 42%, #67385f 44%, #794057 50%, #82444c 56.6%, #653643 56.7%, #432535 62%, #251627 68%, #160f1c 76%, #0b0913 84%, #06050b 92%, #020205 100%); }
+.sky[data-phase='night'] { --sky: linear-gradient(180deg, #020307 0%, #03050c 8%, #050813 16%, #070c1d 26%, #0a1025 34%, #0d142d 42%, #0d142d 46%, #101730 50%, #131a32 56.6%, #0e1426 56.7%, #0a0e1d 62%, #060913 68%, #060812 70%, #04070e 76%, #03050a 84%, #020306 92%, #010204 100%); }
+
+.stars, .fog-band, .shimmer, .ripples, .cabin-light, .smoke, .fireflies, .leaves, .rain, .snow {
+  opacity: 0; transition: opacity 2.4s ease;
+}
+.star { position: absolute; border-radius: 50%; background: #fff; }
+.star.twinkle { animation: twinkle 4s ease-in-out infinite alternate; }
+
+.shooting { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.shooting i {
+  position: absolute; left: 0; top: -1px; width: 260px; height: 2px; border-radius: 2px; opacity: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.95));
+}
+.shooting.is-on i { animation: shoot 1.2s ease-in forwards; }
+
+/* Sun and moon are clipped at the shoreline; the lake shows their light as a glitter path instead. */
+.celestial { position: absolute; left: 0; top: 0; width: 1920px; height: 612px; overflow: hidden; transition: transform 1.8s var(--ease); will-change: transform; }
+.sun {
+  position: absolute; left: 0; top: 0; width: 360px; height: 360px; border-radius: 50%; opacity: 0;
+  background: radial-gradient(circle, rgba(255, 252, 236, 0.95) 0%, rgba(255, 247, 220, 0.78) 9%,
+    rgba(255, 240, 205, 0.3) 25%, rgba(255, 238, 205, 0.08) 44%, rgba(255, 238, 205, 0) 64%);
+  transition: opacity 2.4s ease, transform 3s var(--ease);
+}
+.moon { position: absolute; left: 0; top: 0; width: 260px; height: 260px; opacity: 0; transition: opacity 2.4s ease, transform 3s var(--ease); }
+.moon-glow {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%;
+  background: radial-gradient(circle, rgba(200, 214, 255, 0.32) 0%, rgba(200, 214, 255, 0.1) 32%, rgba(200, 214, 255, 0) 62%);
+}
+.moon-disc { position: absolute; left: 84px; top: 84px; width: 92px; height: 92px; }
+.moon-disc svg { display: block; width: 100%; height: 100%; }
+
+
+.bolt { position: absolute; left: 0; top: 150px; width: 300px; height: 460px; opacity: 0; }
+.bolt svg { display: block; }
+.bolt.is-on { animation: bolt 0.9s ease-out; }
+.flash { opacity: 0; background: #e3e9ff; }
+.flash.is-on { animation: flash 0.9s ease-out; }
+
+.clouds { opacity: 0; color: #fff; transition: opacity 2.4s ease, transform 1.8s var(--ease); will-change: transform; }
+.cloud { position: absolute; left: 0; animation: cloud-drift 200s linear infinite; }
+.cloud svg { display: block; width: 100%; height: auto; }
+
+.birds { position: absolute; left: 0; top: 200px; display: none; transition: opacity 1.2s ease; }
+.birds.is-leaving { opacity: 0; }
+.birds.is-flying { display: block; animation: fly-ltr 34s linear forwards; }
+.birds.is-flying.is-rtl { animation-name: fly-rtl; }
+.flock-bob { position: relative; animation: bob 3.4s ease-in-out infinite alternate; }
+.bird { position: absolute; width: 34px; height: 14px; animation: flap 0.46s ease-in-out infinite alternate; }
+.bird svg { display: block; width: 100%; height: 100%; }
+
+/* Landscape layers: 2080px wide so the parallax pan never shows an edge. */
+/* Parallax layers keep their own GPU layer (will-change), so moving focus never forces a redraw. */
+.layer { position: absolute; left: -80px; top: 0; width: 2080px; height: 1080px; transition: transform 1.8s var(--ease); will-change: transform; }
+.layer svg { position: absolute; left: 0; display: block; }
+/* Winter snow on the land sits on its own layers, so it settles and melts with an opacity fade alone. */
+.land-snow { position: absolute; left: 0; top: 0; opacity: 0; transition: opacity 5s ease; }
+
+.fog-band {
+  position: absolute; left: -25%; width: 150%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(205, 212, 224, 0.5), rgba(205, 212, 224, 0));
+  animation: fog-drift 36s ease-in-out infinite alternate;
+}
+.fog-far { top: 430px; height: 240px; }
+.fog-near {
+  top: 560px; height: 300px; animation-duration: 52s; animation-direction: alternate-reverse;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(205, 212, 224, 0.3), rgba(205, 212, 224, 0));
+}
+
+.cabin-glow {
+  position: absolute; left: 1420px; top: 490px; width: 300px; height: 160px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 186, 102, 0.36), rgba(255, 186, 102, 0));
+  animation: hearth 5s ease-in-out infinite alternate;
+}
+.cabin-win { position: absolute; background: #ffc56e; box-shadow: 0 0 10px rgba(255, 190, 100, 0.9); }
+.cabin-door { background: #e9a04f; opacity: 0.7; }
+.cabin-trail { position: absolute; left: 1500px; top: 613px; opacity: 0.6; }
+.cabin-trail svg { display: block; }
+
+.smoke { position: absolute; left: 1583px; top: 497px; width: 30px; height: 30px; }
+.puff {
+  position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%; opacity: 0;
+  background: radial-gradient(circle, rgba(226, 230, 238, 0.42), rgba(226, 230, 238, 0) 70%);
+  animation: puff 8s linear infinite;
+}
+
+.ff {
+  position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; opacity: 0;
+  background: radial-gradient(circle, #fff7c2 0%, rgba(246, 226, 122, 0.85) 22%, rgba(246, 226, 122, 0) 66%);
+  animation: firefly 9s ease-in-out infinite;
+}
+
+.shim { position: absolute; height: 2px; border-radius: 2px; animation: shim 18s ease-in-out infinite alternate; }
+
+.glitter { position: absolute; left: 0; top: 614px; width: 260px; height: 340px; opacity: 0; transition: opacity 2.4s ease, transform 3s var(--ease); }
+.glitter-a, .glitter-b { position: absolute; top: 0; left: 0; }
+.glitter svg { display: block; }
+.glitter-a { animation: glint 1.6s ease-in-out infinite alternate; }
+.glitter-b { animation: glint 1.6s ease-in-out -0.8s infinite alternate-reverse; }
+.is-lapse .sun, .is-lapse .moon { transition: opacity 2.4s ease, transform 0.15s linear; }
+.is-lapse .glitter { transition: opacity 2.4s ease, transform 0.15s linear; }
+
+.ripple {
+  position: absolute; width: 54px; height: 14px; margin: -7px 0 0 -27px; border-radius: 50%;
+  border: 2px solid rgba(220, 230, 245, 0.55); animation: ripple 1.9s ease-out infinite;
+}
+
+.veil { opacity: 0; transition: opacity 2.4s ease; }
+
+.leaf { position: absolute; top: -40px; width: 22px; height: 22px; animation: leaf-drift 18s ease-in-out infinite; }
+.leaf svg { display: block; width: 100%; height: 100%; }
+
+/* Layers start one tile above the visible area so the slide never uncovers an edge. */
+.rain { transform: rotate(12deg); }
+.rain-layer { position: absolute; left: -120px; top: -620px; width: 2160px; height: 1900px; animation: fall-420 0.8s linear infinite; }
+.rain.is-heavy .rain-layer { animation-duration: 0.55s; }
+
+.snow-sway { animation: sway 7s ease-in-out infinite alternate; }
+.snow-layer { position: absolute; left: -40px; top: -490px; width: 2000px; height: 1580px; animation: fall-480 19s linear infinite; }
+/* Big, soft flakes close to the viewer, for depth. */
+.snow-near { opacity: 0; transition: opacity 2.4s ease; }
+.flake {
+  position: absolute; top: -30px; border-radius: 50%; animation: flake-drift 9s linear infinite;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0, rgba(255, 255, 255, 0.55) 45%, rgba(255, 255, 255, 0) 72%);
+}
+
+/* Automatic quality (app.js): each step hides the next most costly extras when the TV can't keep up. */
+.q1 #snowNear, .q1 #shimmer, .q1 .birds, .q1 .icon-reflect { display: none; }
+.q2 #leaves, .q2 #fireflies, .q2 #glitter, .q2 #smoke, .q2 .icon-water { display: none; }
+.q2 .cloud, .q2 .star.twinkle { animation-play-state: paused; }
+.q3 #clouds, .q3 #fogFar, .q3 #fogNear { display: none; }
+
+.dim { opacity: 0; background: rgba(4, 6, 12, 0.6); transition: opacity 0.5s ease; }
+.on-page-b .dim { opacity: 1; }
+
+@keyframes twinkle { from { opacity: 0.9; } to { opacity: 0.15; } }
+@keyframes shoot { 0% { transform: translateX(-260px); opacity: 0; } 18% { opacity: 1; } 100% { transform: translateX(460px); opacity: 0; } }
+@keyframes bolt { 0% { opacity: 0; } 6% { opacity: 1; } 14% { opacity: 0.15; } 22% { opacity: 0.9; } 100% { opacity: 0; } }
+@keyframes flash { 0% { opacity: 0; } 6% { opacity: 0.3; } 14% { opacity: 0.04; } 22% { opacity: 0.2; } 100% { opacity: 0; } }
+@keyframes cloud-drift { from { transform: translateX(-720px); } to { transform: translateX(2000px); } }
+@keyframes fly-ltr { from { transform: translateX(-220px); } to { transform: translateX(2140px); } }
+@keyframes fly-rtl { from { transform: translateX(2140px) scaleX(-1); } to { transform: translateX(-220px) scaleX(-1); } }
+@keyframes bob { from { transform: translateY(-10px); } to { transform: translateY(10px); } }
+@keyframes flap { from { transform: scaleY(1); } to { transform: scaleY(-0.45); } }
+@keyframes fog-drift { from { transform: translateX(-140px); } to { transform: translateX(140px); } }
+@keyframes hearth { from { opacity: 0.8; } to { opacity: 1; } }
+@keyframes puff { 0% { transform: translate(0, 0) scale(0.5); opacity: 0; } 15% { opacity: 0.8; } 100% { transform: translate(34px, -150px) scale(3.2); opacity: 0; } }
+@keyframes firefly {
+  0% { transform: translate(0, 0); opacity: 0; } 15% { opacity: 1; } 30% { transform: translate(26px, -14px); opacity: 0.2; }
+  45% { opacity: 1; } 60% { transform: translate(-12px, -30px); opacity: 0.1; } 75% { opacity: 0.9; } 100% { transform: translate(18px, 8px); opacity: 0; }
+}
+@keyframes shim { from { transform: translateX(-50px); opacity: 0.2; } to { transform: translateX(50px); opacity: 1; } }
+@keyframes glint { from { opacity: 0.15; } to { opacity: 0.85; } }
+@keyframes ripple { from { transform: scale(0.15); opacity: 0.9; } to { transform: scale(1.7); opacity: 0; } }
+@keyframes leaf-drift {
+  0% { transform: translate(0, 0) rotate(0deg) scaleX(1); } 20% { transform: translate(-40px, 232px) rotate(100deg) scaleX(-0.4); }
+  40% { transform: translate(-150px, 464px) rotate(200deg) scaleX(1); } 60% { transform: translate(-230px, 696px) rotate(290deg) scaleX(-0.4); }
+  80% { transform: translate(-370px, 928px) rotate(400deg) scaleX(1); } 100% { transform: translate(-460px, 1160px) rotate(500deg) scaleX(-0.4); }
+}
+@keyframes sway { from { transform: translateX(-18px); } to { transform: translateX(18px); } }
+@keyframes fall-480 { from { transform: translateY(0); } to { transform: translateY(480px); } }
+@keyframes fall-420 { from { transform: translateY(0); } to { transform: translateY(420px); } }
+@keyframes flake-drift {
+  0% { transform: translate(0, 0); } 25% { transform: translate(-22px, 285px); } 50% { transform: translate(16px, 570px); }
+  75% { transform: translate(-16px, 855px); } 100% { transform: translate(10px, 1140px); }
+}
+
+/* ---------- Top bar ---------- */
+.ui { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transition: transform 6s ease-in-out; }
+
+.topbar { position: absolute; left: var(--edge); right: var(--edge); top: 52px; display: flex; justify-content: space-between; align-items: flex-start; }
+/* A soft shadow keeps text readable over any sky; it is painted once, never animated. */
+.topbar, .focus-title, .row-label, .more-hint { text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45); }
+.greeting { margin: 0 0 6px 4px; font-size: 22px; letter-spacing: 0.32em; text-transform: uppercase; color: var(--muted); }
+.time-row { display: flex; align-items: baseline; }
+.time { font-size: 132px; font-weight: 300; line-height: 1; letter-spacing: -0.02em; }
+.ampm { margin-left: 14px; font-size: 40px; color: var(--fg-dim); }
+.date { margin: 12px 0 0 4px; font-size: 30px; color: var(--fg-dim); }
+.mood { display: flex; align-items: center; margin: 14px 0 0 4px; font-size: 23px; color: var(--muted); }
+.mood-icon { width: 28px; height: 28px; margin-right: 12px; color: var(--fg-dim); }
+.mood-icon svg { display: block; width: 100%; height: 100%; }
+
+.top-right { display: flex; align-items: center; margin-top: 24px; }
+.weather { display: flex; align-items: center; margin-right: 44px; }
+.weather-icon { width: 86px; height: 86px; margin-right: 20px; }
+.weather-icon svg, .wi svg { display: block; width: 100%; height: 100%; }
+.weather-temp { font-size: 62px; font-weight: 300; line-height: 1; }
+.weather-desc { margin-top: 6px; font-size: 26px; color: var(--fg-dim); }
+.weather-range { margin-top: 2px; font-size: 21px; color: var(--muted); }
+
+.icon-button {
+  position: relative; width: 84px; height: 84px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.16);
+  transition: transform 0.22s var(--ease);
+}
+.icon-button::before {
+  content: ''; position: absolute; top: -2px; right: -2px; bottom: -2px; left: -2px; border-radius: 50%;
+  background: #fff; opacity: 0; transition: opacity 0.18s ease;
+}
+.icon-button svg { position: relative; width: 40px; height: 40px; }
+.icon-button.is-focused { transform: scale(1.12); color: #0b0d12; }
+.icon-button.is-focused::before { opacity: 1; }
+
+/* ---------- Pages ---------- */
+.page {
+  position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; opacity: 0; pointer-events: none;
+  transition: opacity 0.45s var(--ease), transform 0.45s var(--ease);
+}
+.page-a { transform: translateY(-70px); }
+.page-b { transform: translateY(70px); }
+.page.is-active { opacity: 1; transform: none; pointer-events: auto; }
+
+.focus-title { position: absolute; left: var(--edge); top: 468px; }
+.focus-title-main { font-size: 76px; font-weight: 500; line-height: 1.05; letter-spacing: -0.01em; }
+.focus-title-sub { margin-top: 10px; font-size: 28px; color: var(--fg-dim); }
+.focus-title.swap { animation: title-in 0.3s var(--ease); }
+@keyframes title-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+.row-label { position: absolute; left: var(--edge); font-size: 19px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.chip {
+  margin-left: 18px; padding: 5px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.1);
+  font-size: 16px; letter-spacing: 0.06em; text-transform: none; color: var(--fg-dim);
+}
+.row { position: absolute; left: var(--edge); right: var(--edge); }
+.track { display: flex; align-items: center; height: 100%; transition: transform 0.35s var(--ease); }
+.track > * + * { margin-left: 24px; }
+
+#appsLabel { top: 612px; }
+#appsRow { top: 664px; height: 150px; }
+#appsTrack > * + * { margin-left: 36px; }
+#inputsLabel { top: 852px; }
+#inputsRow { top: 884px; height: 130px; }
+#mediaLabel { top: 344px; }
+#mediaRow { top: 380px; height: 260px; }
+#homeLabel { top: 688px; }
+#homeRow { top: 724px; height: 180px; }
+
+.more-hint {
+  position: absolute; left: 0; right: 0; top: 1030px; text-align: center;
+  font-size: 18px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(255, 255, 255, 0.4);
+}
+
+/* ---------- Focusable items ---------- */
+.input-tile, .media-card, .home-tile { position: relative; flex: 0 0 auto; transition: transform 0.24s var(--ease); }
+.input-tile::after, .media-card::after, .home-tile::after, .seg-option::after, .set-btn::after, .set-item::after, .icon-lift::after {
+  content: ''; position: absolute; top: -8px; right: -8px; bottom: -8px; left: -8px; border-radius: 28px;
+  border: 4px solid rgba(255, 255, 255, 0.95); box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+  opacity: 0; transition: opacity 0.18s ease; pointer-events: none;
+}
+.input-tile::after, .media-card::after, .home-tile::after { opacity: 0.001; }
+.is-focused::after, .app-icon.is-focused .icon-lift::after { opacity: 1; }
+.input-tile.is-focused, .media-card.is-focused, .home-tile.is-focused { transform: translateY(-6px) scale(1.06); }
+
+/* Everything that changes when focus moves keeps its own GPU layer, and focus never reorders layers, so a focus
+   move only changes layer properties instead of redrawing part of the screen. Resting focus visuals sit at an
+   invisible 0.001 rather than 0, so they are drawn before the first focus. */
+.icon-lift, .icon-reflect, .input-tile, .media-card, .home-tile, .focus-title { will-change: transform; }
+.app-icon:not(.in-grid) .icon-brand, .icon-water { will-change: opacity; }
+
+/* App icons: frosted glass resting on the lake, the logo in white and the app's own light pooled inside.
+   With focus an icon lifts off the water, blooms into its brand colours and makes its signature move. */
+.app-icon { position: relative; flex: 0 0 auto; width: 132px; height: 132px; }
+.icon-lift { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transition: transform 0.4s var(--ease); }
+.icon-lift::after { top: -7px; right: -7px; bottom: -7px; left: -7px; border-radius: 39px; border-width: 3px; opacity: 0.001; }
+.icon-glass, .icon-brand { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 32px; overflow: hidden; }
+.icon-glass {
+  color: rgba(255, 255, 255, 0.92);
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.06) 34%, rgba(255, 255, 255, 0) 58%), rgba(16, 22, 34, 0.58);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.16), 0 14px 30px rgba(0, 0, 0, 0.32);
+}
+.icon-pool {
+  position: absolute; left: 6%; right: 6%; bottom: -36%; height: 76%; border-radius: 50%;
+  background: radial-gradient(closest-side, var(--glow), rgba(0, 0, 0, 0));
+}
+.icon-brand { opacity: 0.001; transition: opacity 0.4s ease; }
+.icon-glyph { position: absolute; left: 25%; top: 25%; width: 50%; height: 50%; }
+.icon-glyph.is-word { left: 11%; top: 11%; width: 78%; height: 78%; }
+.icon-glyph svg { display: block; width: 100%; height: 100%; }
+/* The TV's own icon: small and rounded in the glass, filling the face when it blooms. */
+.icon-img { position: absolute; left: 21%; top: 21%; width: 58%; height: 58%; border-radius: 18%; object-fit: cover; }
+.icon-brand .icon-img { left: 0; top: 0; width: 100%; height: 100%; border-radius: 0; }
+.app-icon.is-focused .icon-lift { transform: translateY(-14px) scale(1.12); }
+.app-icon.is-focused .icon-brand { opacity: 1; }
+.app-icon .live { z-index: 2; left: -8px; top: -9px; padding: 4px 10px 4px 8px; background: #11151d; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); }
+
+/* The mirror image on the water: the glass face flipped into a short strip that darkens away towards the viewer.
+   As the icon lifts, the reflection drops away by the same amount. */
+.icon-reflect {
+  position: absolute; left: 0; top: 100%; width: 100%; height: 48px; margin-top: 6px; overflow: hidden; opacity: 0.22;
+  pointer-events: none; transform-origin: 50% 0; transition: transform 0.4s var(--ease), opacity 0.4s ease;
+}
+.icon-reflect .icon-glass { height: 132px; transform: scaleY(-1); box-shadow: none; }
+.reflect-fade {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(180deg, rgba(5, 8, 16, 0) 0%, rgba(5, 8, 16, 0.92) 100%);
+}
+.app-icon.is-focused .icon-reflect { transform: translateY(14px) scale(1.12); opacity: 0.16; }
+.icon-water {
+  position: absolute; left: 50%; top: 100%; width: 260px; height: 70px; margin: -22px 0 0 -130px; border-radius: 50%; opacity: 0.001;
+  background: radial-gradient(closest-side, var(--glow), rgba(0, 0, 0, 0)); transition: opacity 0.5s ease; pointer-events: none;
+}
+.app-icon.is-focused .icon-water { opacity: 1; }
+.icon-ripple {
+  position: absolute; left: 50%; top: 100%; width: 170px; height: 30px; margin: -9px 0 0 -85px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.5); opacity: 0; pointer-events: none;
+}
+.app-icon.is-focused .icon-ripple { animation: icon-ripple 1.4s ease-out 0.08s; }
+.app-icon.is-focused .icon-ripple-2 { animation-delay: 0.4s; }
+
+/* Signature moves while an icon has focus. Logo parts (sig-*) come from glyphs.js and art.js. */
+.is-focused .sig-tadum .icon-brand .icon-glyph { animation: tadum 0.9s var(--ease) 0.15s; }
+.is-focused .sig-press .icon-brand .icon-glyph { animation: press 0.7s var(--ease) 0.15s; }
+.icon-brand .sig-wave { visibility: hidden; }
+.is-focused .icon-wave { animation: wave 1.6s ease-out infinite; }
+.is-focused .icon-wave-2 { animation-delay: 0.3s; }
+.sig-blink, .sig-spin, .sig-dot { transform-box: fill-box; transform-origin: center; }
+.sig-blink { transform: scaleY(0); }
+.is-focused .icon-brand .sig-blink { animation: blink 3.2s ease-in-out 0.6s infinite; }
+.is-focused .icon-brand .sig-spin { animation: spin 2.4s linear infinite; }
+.is-focused .icon-brand .sig-dot { animation: dot 1.5s ease-in-out infinite; }
+.sig-sparkle { opacity: 0; transform-origin: 544px 440px; }
+.is-focused .icon-brand .sig-sparkle { animation: sparkle 3s ease-in-out 0.3s infinite; }
+.icon-eq { position: absolute; right: 13%; bottom: 13%; display: flex; align-items: flex-end; height: 16%; opacity: 0; transition: opacity 0.3s ease; }
+.icon-eq i { width: 5px; height: 100%; margin-left: 3px; border-radius: 2px; background: currentColor; transform-origin: 50% 100%; transform: scaleY(0.3); }
+.is-focused .icon-eq { opacity: 1; }
+.is-focused .icon-eq i { animation: eq 0.8s ease-in-out infinite alternate; }
+.is-focused .icon-eq i:nth-child(2) { animation-duration: 0.6s; animation-delay: -0.3s; }
+.is-focused .icon-eq i:nth-child(3) { animation-duration: 1s; animation-delay: -0.5s; }
+
+/* Snow builds up on the dock icons while it snows and melts away after; selecting one knocks a little off. */
+.icon-snowcap {
+  position: absolute; z-index: 1; left: -4px; top: -18px; width: 140px; height: 40px; pointer-events: none;
+  opacity: 0; transform: scaleY(0.15); transform-origin: 50% 45%; transition: opacity 6s ease, transform 9s ease-in;
+}
+.is-snowing .icon-snowcap { opacity: 1; transform: none; transition: opacity 2.5s ease, transform 16s cubic-bezier(0.2, 0.6, 0.3, 1); }
+.cap-body { display: block; width: 100%; height: 100%; transform-origin: 50% 60%; }
+.cap-body svg { display: block; width: 100%; height: 100%; }
+.is-snowing .app-icon.is-focused .cap-body { animation: cap-wobble 0.7s ease-out 0.1s; }
+.snow-puff i { position: absolute; top: 2px; width: 6px; height: 6px; border-radius: 50%; background: #fff; opacity: 0; pointer-events: none; }
+.snow-puff i:nth-child(1) { left: 26%; }
+.snow-puff i:nth-child(2) { left: 50%; width: 5px; height: 5px; }
+.snow-puff i:nth-child(3) { left: 72%; }
+.is-snowing .app-icon.is-focused .snow-puff i { animation: puff-left 1.1s ease-in 0.15s; }
+.is-snowing .app-icon.is-focused .snow-puff i:nth-child(2) { animation-name: puff-down; animation-delay: 0.25s; }
+.is-snowing .app-icon.is-focused .snow-puff i:nth-child(3) { animation-name: puff-right; animation-delay: 0.2s; }
+
+@keyframes cap-wobble { 0%, 100% { transform: none; } 25% { transform: rotate(-2.5deg); } 55% { transform: rotate(2deg); } 80% { transform: rotate(-1deg); } }
+@keyframes puff-left { from { transform: translate(0, 0); opacity: 0.95; } to { transform: translate(-16px, 74px); opacity: 0; } }
+@keyframes puff-down { from { transform: translate(0, 0); opacity: 0.95; } to { transform: translate(3px, 80px); opacity: 0; } }
+@keyframes puff-right { from { transform: translate(0, 0); opacity: 0.95; } to { transform: translate(14px, 70px); opacity: 0; } }
+@keyframes icon-ripple { from { transform: scale(0.35); opacity: 0.85; } to { transform: scale(1.35); opacity: 0; } }
+@keyframes tadum { 0%, 100% { transform: scale(1); } 22% { transform: scale(1.16); } 40% { transform: scale(0.97); } 58% { transform: scale(1.08); } 76% { transform: scale(1); } }
+@keyframes press { 0%, 100% { transform: scale(1); } 30% { transform: scale(0.86); } 65% { transform: scale(1.08); } }
+@keyframes wave { 0% { opacity: 0.15; } 30% { opacity: 1; } 100% { opacity: 0.15; } }
+@keyframes blink { 0%, 88%, 100% { transform: scaleY(0); } 92%, 95% { transform: scaleY(1); } }
+@keyframes spin { 0% { transform: scaleX(1); } 50% { transform: scaleX(-1); } 100% { transform: scaleX(1); } }
+@keyframes dot { 0%, 60%, 100% { transform: scale(1); } 25% { transform: scale(1.4); } }
+@keyframes sparkle { 0% { transform: rotate(-142deg); opacity: 0; } 12% { opacity: 1; } 55% { transform: rotate(-22deg); opacity: 1; } 68%, 100% { transform: rotate(-22deg); opacity: 0; } }
+@keyframes eq { from { transform: scaleY(0.25); } to { transform: scaleY(1); } }
+
+/* A streak of light sweeps across a tile as it takes focus. */
+.shine-clip { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.shine {
+  position: absolute; top: -20%; left: 0; width: 34%; height: 140%; opacity: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0));
+  transform: translateX(-120%) skewX(-18deg);
+}
+.is-focused .shine { animation: shine 0.9s var(--ease) 0.1s; }
+@keyframes shine { from { transform: translateX(-120%) skewX(-18deg); opacity: 1; } to { transform: translateX(420%) skewX(-18deg); opacity: 1; } }
+
+.live {
+  position: absolute; left: 12px; top: 10px; display: flex; align-items: center; padding: 3px 9px 3px 7px; border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45); font-size: 14px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #fff;
+}
+.live i { width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: #ff4d4f; animation: live 1.6s ease-in-out infinite; }
+@keyframes live { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+.input-tile {
+  width: 330px; height: 112px; border-radius: 20px; display: flex; align-items: center; padding: 0 22px;
+  background: rgba(255, 255, 255, 0.09); border: 2px solid rgba(255, 255, 255, 0.12);
+}
+.input-art { flex: 0 0 auto; width: 56px; height: 56px; color: var(--fg-dim); }
+.input-art svg { display: block; width: 100%; height: 100%; }
+.input-text { flex: 1 1 auto; min-width: 0; margin-left: 18px; }
+.input-name { font-size: 30px; font-weight: 500; line-height: 1.1; white-space: nowrap; }
+.input-name, .input-sub { overflow: hidden; text-overflow: ellipsis; }
+.input-sub { margin-top: 4px; font-size: 19px; color: var(--muted); white-space: nowrap; }
+.input-key {
+  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.28);
+  display: flex; align-items: center; justify-content: center; font-size: 19px; color: var(--fg-dim);
+}
+.input-ps5 {
+  width: 400px; padding-left: 14px;
+  background: linear-gradient(120deg, #0a1a40 0%, #10306f 58%, #1b4db0 100%); border-color: rgba(125, 170, 255, 0.35);
+}
+.input-ps5 .input-art { position: relative; width: 88px; height: 104px; transition: transform 0.3s var(--ease); }
+.input-ps5 .input-text, .input-ps5 .input-key { position: relative; }
+.ps5-glow {
+  position: absolute; left: -10px; top: 50%; width: 150px; height: 150px; margin-top: -75px; border-radius: 50%; opacity: 0;
+  background: radial-gradient(circle, rgba(90, 160, 255, 0.6) 0%, rgba(90, 160, 255, 0) 68%); pointer-events: none;
+}
+.input-ps5.is-focused .ps5-glow { animation: ps5-glow 2.2s ease-in-out infinite alternate; }
+@keyframes ps5-glow { from { opacity: 0.35; } to { opacity: 1; } }
+.input-ps5.is-focused .input-art { transform: translateY(-4px) scale(1.08); }
+
+.media-card { width: 400px; height: 225px; border-radius: 22px; }
+.media-card::after, .home-tile::after { border-radius: 30px; }
+.media-face {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 22px; overflow: hidden;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4);
+}
+.media-face svg { display: block; width: 100%; height: 100%; }
+.media-info { position: absolute; left: 24px; right: 24px; bottom: 20px; }
+.media-title { font-size: 30px; font-weight: 700; letter-spacing: 0.01em; }
+.media-detail { margin-top: 2px; font-size: 19px; color: var(--fg-dim); }
+.media-progress { height: 5px; margin-top: 12px; border-radius: 3px; overflow: hidden; background: rgba(255, 255, 255, 0.25); }
+.media-progress span { display: block; height: 100%; background: #fff; }
+
+.home-tile {
+  width: 300px; height: 150px; border-radius: 22px; padding: 22px 24px;
+  background: rgba(255, 255, 255, 0.09); border: 2px solid rgba(255, 255, 255, 0.12);
+}
+.home-tile.is-on { background: rgba(255, 196, 84, 0.2); border-color: rgba(255, 210, 120, 0.45); }
+.home-scene { background: rgba(130, 140, 255, 0.16); border-color: rgba(150, 160, 255, 0.35); }
+.home-icon { width: 40px; height: 40px; color: var(--fg-dim); }
+.home-icon svg { display: block; width: 100%; height: 100%; }
+.home-tile.is-on .home-icon { color: #ffd27a; }
+.home-name { margin-top: 14px; font-size: 26px; font-weight: 500; }
+.home-state { margin-top: 2px; font-size: 19px; color: var(--muted); }
+
+/* ---------- Overlays ---------- */
+.overlay {
+  position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; opacity: 0; visibility: hidden;
+  transition: opacity 0.32s ease, visibility 0s linear 0.32s;
+}
+.overlay.is-open { opacity: 1; visibility: visible; transition: opacity 0.32s ease; }
+
+.launch {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(70% 70% at 50% 42%, var(--launch, rgba(31, 41, 55, 0.6)) 0%, rgba(5, 7, 12, 0) 78%), #05070c;
+}
+.launch-art {
+  width: 480px; height: 270px; border-radius: 30px; overflow: hidden; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+  opacity: 0; transform: scale(0.86); transition: opacity 0.4s ease, transform 0.5s var(--ease);
+}
+.launch-art img, .launch-art svg { display: block; width: 100%; height: 100%; }
+.launch-art img { object-fit: cover; }
+.launch-art.is-console { width: 260px; height: 312px; border-radius: 0; overflow: visible; box-shadow: none; }
+.launch-art.is-icon { width: 180px; height: 180px; border-radius: 0; overflow: visible; box-shadow: none; }
+.launch-art.is-app { width: 220px; height: 220px; border-radius: 0; overflow: visible; box-shadow: none; }
+.launch-art .icon-brand { opacity: 1; border-radius: 54px; box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5), 0 0 120px var(--launch); }
+.launch.is-open .launch-art { opacity: 1; transform: none; }
+.launch-art, .launch-title, .launch-sub, .launch-bar, .launch-note { position: relative; }
+.launch-bar { width: 360px; height: 4px; margin-top: 30px; border-radius: 2px; overflow: hidden; background: rgba(255, 255, 255, 0.14); }
+.launch-bar i { display: block; height: 100%; background: #fff; transform-origin: 0 50%; transform: scaleX(0); }
+.launch.is-open .launch-bar i { transform: scaleX(1); transition: transform 2.2s cubic-bezier(0.4, 0, 0.2, 1) 0.2s; }
+
+.launch.is-ps5 { background: radial-gradient(60% 60% at 50% 45%, rgba(37, 99, 235, 0.42) 0%, rgba(3, 7, 20, 0) 75%), #02050f; }
+.launch-fx { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; display: none; }
+.launch.is-ps5 .launch-fx { display: block; }
+.ps-band {
+  position: absolute; top: -50%; left: -30%; width: 40%; height: 200%;
+  background: linear-gradient(90deg, rgba(120, 170, 255, 0), rgba(120, 170, 255, 0.1), rgba(120, 170, 255, 0));
+  animation: band 7s ease-in-out infinite;
+}
+.ps-shape { position: absolute; bottom: -120px; color: rgba(160, 196, 255, 0.55); animation: rise 12s linear infinite; }
+.ps-shape svg { display: block; width: 100%; height: 100%; }
+.launch.is-ps5 .launch-art { transform: translateY(60px) scale(0.9); transition: opacity 0.6s ease, transform 1.1s var(--ease); }
+.launch.is-ps5.is-open .launch-art { transform: none; }
+@keyframes band { from { transform: translateX(0) rotate(18deg); } to { transform: translateX(2600px) rotate(18deg); } }
+@keyframes rise { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 15% { opacity: 1; } 80% { opacity: 0.6; } 100% { transform: translateY(-1300px) rotate(160deg); opacity: 0; } }
+.launch-title { margin-top: 44px; font-size: 64px; font-weight: 500; }
+.launch-sub { margin-top: 8px; font-size: 28px; color: var(--fg-dim); }
+.launch-note { margin-top: 40px; font-size: 22px; color: var(--muted); opacity: 0; transition: opacity 0.5s ease; }
+.launch.is-open .launch-note { opacity: 1; transition-delay: 0.9s; }
+
+.sheet { display: flex; align-items: center; justify-content: center; background: rgba(3, 5, 10, 0.8); }
+.sheet-card {
+  position: relative; width: 1200px; padding: 52px 56px; border-radius: 34px; background: #141821;
+  border: 2px solid rgba(255, 255, 255, 0.08); box-shadow: 0 40px 120px rgba(0, 0, 0, 0.6);
+  transform: translateY(24px); transition: transform 0.35s var(--ease);
+}
+.sheet.is-open .sheet-card { transform: none; }
+.sheet-title { margin: 0 0 26px; font-size: 44px; font-weight: 500; }
+
+.grid { display: flex; flex-wrap: wrap; margin: -10px; }
+.grid-item { width: 160px; margin: 10px 10px 22px; }
+.grid .app-icon { width: 112px; height: 112px; margin: 0 auto; }
+.grid .icon-glass, .grid .icon-brand { border-radius: 28px; }
+.grid .icon-lift::after { border-radius: 34px; }
+.grid .app-icon.is-focused .icon-lift { transform: translateY(-6px) scale(1.1); }
+.grid-name { margin-top: 16px; text-align: center; font-size: 20px; color: var(--fg-dim); }
+
+.settings-card { width: 1040px; }
+#allApps .sheet-card { width: 1640px; }
+.set-label { margin: 26px 0 14px; font-size: 19px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--muted); }
+.seg, .set-row { display: flex; }
+.seg-option, .set-btn {
+  position: relative; margin-right: 16px; padding: 18px 30px; border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08); font-size: 26px; transition: transform 0.2s var(--ease);
+}
+.seg-option.is-selected { background: #e9edf5; color: #0b0d12; }
+.set-item {
+  position: relative; display: flex; justify-content: space-between; padding: 20px 28px; border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08); font-size: 26px; transition: transform 0.2s var(--ease);
+}
+.set-value { color: var(--muted); }
+.seg-option::after, .set-btn::after, .set-item::after { top: -7px; right: -7px; bottom: -7px; left: -7px; border-radius: 22px; }
+.seg-option.is-focused, .set-btn.is-focused { transform: scale(1.05); }
+.set-item.is-focused { transform: scale(1.02); }
+.set-row { margin-top: 18px; }
+.set-hint { margin: 28px 0 0; font-size: 21px; line-height: 1.5; color: var(--muted); }
+.set-note { margin: 16px 0 0; font-size: 21px; line-height: 1.4; color: var(--muted); }
+.set-note:empty { display: none; }
+.set-footer { display: flex; justify-content: flex-end; margin-top: 28px; }
+.set-footer .set-btn { margin-right: 0; }
+
+/* ---------- OLED-safe idle screen ---------- */
+.idle {
+  position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: #000;
+  opacity: 0; visibility: hidden; transition: opacity 1.2s ease, visibility 0s linear 1.2s;
+}
+.idle.is-on { opacity: 1; visibility: visible; transition: opacity 1.2s ease; }
+.is-sleeping #wallpaper, .is-sleeping .ui { visibility: hidden; }
+.idle-block { position: absolute; left: 0; top: 0; transition: transform 4s ease-in-out; }
+.idle-time { font-size: 120px; font-weight: 300; line-height: 1; letter-spacing: -0.02em; color: #7d838e; }
+.idle-date { margin-top: 12px; font-size: 28px; color: #5c626c; }
+.idle-weather { display: flex; align-items: center; margin-top: 10px; font-size: 26px; color: #5c626c; }
+.wi { width: 34px; height: 34px; margin-right: 12px; }
+.idle-mood { margin-top: 8px; font-size: 24px; color: #4b515b; }
+
+/* ---------- Messages ---------- */
+.toast {
+  position: absolute; left: 50%; top: 40px; padding: 16px 30px; border-radius: 999px; white-space: nowrap;
+  background: rgba(16, 20, 28, 0.94); border: 1px solid rgba(255, 255, 255, 0.1); font-size: 24px;
+  opacity: 0; transform: translate(-50%, -24px); transition: opacity 0.3s ease, transform 0.3s var(--ease);
+}
+.toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+
+/* Browser-only help bar: sits outside the TV canvas. */
+.help {
+  position: fixed; left: 50%; bottom: 14px; z-index: 10; padding: 8px 16px; border-radius: 999px; white-space: nowrap;
+  transform: translateX(-50%); background: rgba(20, 24, 32, 0.88); color: rgba(255, 255, 255, 0.85);
+  font: 13px/1.4 -apple-system, 'Helvetica Neue', Arial, sans-serif; transition: opacity 0.6s ease;
+}
+.help.is-faded { opacity: 0; }
+.help-remote, .on-tv .help-keys { display: none; }
+.on-tv .help-remote { display: inline; }
+.on-tv .help { bottom: 28px; padding: 12px 26px; font-size: 24px; }
+
+/* Frame-rate meter (0 on the remote), for checking smoothness on the TV. */
+.fps {
+  position: absolute; right: 24px; bottom: 18px; display: none; padding: 8px 14px; border-radius: 10px;
+  background: rgba(0, 0, 0, 0.7); color: #9cf59c; font: 22px/1.2 Menlo, 'DejaVu Sans Mono', monospace;
+}
+.fps.is-on { display: block; }
+.is-sleeping .fps { visibility: hidden; }

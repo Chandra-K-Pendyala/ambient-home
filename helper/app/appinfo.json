@@ -1,0 +1,19 @@
+{
+  "id": "com.local.nativehome",
+  "version": "0.7.0",
+  "vendor": "Personal",
+  "type": "native",
+  "main": "detach",
+  "title": "Home Helper",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "requiredACG": [
+    "application.launcher",
+    "activity.operation",
+    "activity.query"
+  ],
+  "noWindow": true,
+  "noSplashOnLaunch": true,
+  "spinnerOnLaunch": false,
+  "titleVisible": true
+}

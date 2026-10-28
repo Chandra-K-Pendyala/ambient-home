@@ -1,0 +1,5 @@
+{
+  "name": "com.local.nativehome.service",
+  "version": "0.7.0",
+  "main": "service.js"
+}
