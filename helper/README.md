@@ -6,7 +6,7 @@ Home Helper makes the remote's Home button open Ambient Home (`prototype/`), on 
 - Hold Back for about a second: LG Home opens once.
 - Press Home three times quickly: Helper lets go of the remote and Home opens LG Home until Helper is started again, from Ambient Home's Settings or with `scripts/tv-home.sh start`. Opening "Home Helper" in LG's app list shows those Settings.
 - In Ambient Home: Settings > Home button opens > LG Home.
-- From the Mac: `scripts/tv-home.sh lg`, or `scripts/tv-home.sh remove` to take Helper and Ambient Home off the TV.
+- From your computer: `scripts/tv-home.sh lg`, or `scripts/tv-home.sh remove` to take Helper and Ambient Home off the TV.
 - If Helper's controller stops answering for 2 seconds, or the TV drops remote events, the relay lets go of the remote and Helper stays off until it is started again.
 
 ## How it works
@@ -21,7 +21,7 @@ Home Helper makes the remote's Home button open Ambient Home (`prototype/`), on 
 - Opens Ambient Home (`com.local.ambienthome`) instead of upstream's launcher (`com.gathin.tvhome`), in `app/helper-entry.js`, `app/native.js`, `app/resume-policy.js`, `app/screen-policy.js` and the tests.
 - Removed the test-only stall hooks: the relay's `S` command (which paused the relay while it still held the remote), the controller's `stall-worker` and `stall-controller` commands, and the `resume` program.
 - No conversion for Node 0.12: the JavaScript runs as written on TVs with Node 10 or newer. Babel, core-js, safe-buffer and the ws 6 copy (`vendor/ws-legacy`) are gone. `app/vendor/ws` is ws 8.21.0, identical to the npm release.
-- Removed the service's `listApps` method and `app-inventory.js`. Ambient Home gets the app list from the Mac with `scripts/tv-sync-apps.mjs`.
+- Removed the service's `listApps` method and `app-inventory.js`. Ambient Home gets the app list from your computer with `scripts/tv-sync-apps.mjs`.
 - Helper gets its own remote-control key with only the four permissions it asks for (`scripts/tv-helper-key.mjs`). Upstream copies its launcher's key, which has 28 permissions, onto the TV.
 - Own version (0.7.0), vendor and icons. Upstream's Developer Mode renewal and updater are not included.
 - `scripts/fix-ipk.py` gives both packages root-owned files (0644, programs 0755), like upstream's released package. Without it, LG's `ares-package` installs every file so that any process on the TV can change it.

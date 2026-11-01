@@ -93,13 +93,15 @@ flowchart LR
 python3 -m http.server 8766 --bind 127.0.0.1 --directory prototype
 ```
 
+On Windows, use `python` instead of `python3`.
+
 Open <http://127.0.0.1:8766> and play: arrows move, Enter opens, Esc goes back. **T** changes the time of day, **W** the weather, **S** the season, **D** runs a day time-lapse, **0** shows the frame rate and **H** hides the help bar.
 
 For Ambient Wallpaper, open <http://127.0.0.1:8766/wallpaper.html>: Enter hides or shows the clock, and a double-click fills the screen. It makes a calm second screen, too.
 
 ### 📺 Put it on your TV
 
-You need an LG webOS TV with **Developer Mode** turned on (LG's Developer Mode app, signed in with a free LG developer account, and *Key Server* on), plus a computer on the same network with **Node.js 22+** and **Python 3**.
+You need an LG webOS TV with **Developer Mode** turned on (LG's Developer Mode app, signed in with a free LG developer account, and *Key Server* on), or a [rooted TV](#-rooted-tv-homebrew-channel) with the Homebrew Channel, plus a computer on the same network with **Node.js 22+** and **Python 3**. On Windows, run the scripts in Git Bash, which comes with [Git for Windows](https://git-scm.com/download/win).
 
 1. **One-time setup**: install LG's command-line tools inside the project and register your TV. The steps are at the top of [`scripts/tv-preview.sh`](scripts/tv-preview.sh).
 2. **Try it as an app**: `scripts/tv-preview.sh` installs Ambient Home as a normal Developer Mode app. The Home button still opens LG Home.
@@ -114,7 +116,25 @@ You need an LG webOS TV with **Developer Mode** turned on (LG's Developer Mode a
 6. **Take over the Home button**: run `TV_HOST=<TV IP> scripts/tv-home.sh install`, then `scripts/tv-home.sh start`. The script header explains the one extra tool it needs (the Zig compiler, installed inside the project). `status`, `lg` and `remove` are there whenever you need them.
 
 > [!TIP]
-> Developer Mode sessions expire. Extend yours in LG's Developer Mode app now and then: when a session runs out, the TV removes Developer Mode apps and Home goes back to LG Home.
+> Developer Mode sessions expire. Extend yours in LG's Developer Mode app now and then: when a session runs out, the TV removes Developer Mode apps and Home goes back to LG Home. A rooted TV has no sessions to extend.
+
+### 🔓 Rooted TV (Homebrew Channel)
+
+If your TV is rooted and has the [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel), you don't need LG's Developer Mode app. The scripts log in as root over SSH instead, using a key rather than a password.
+
+1. **On the TV**: open the Homebrew Channel's Settings and turn on **SSH Server**. Turn off **Telnet**, which gives anyone on your network root access with no password, and keep **Block system updates** on.
+2. **Give the TV a key**: make one, then copy it to the TV. The copy asks for the TV's root password, which is `alpine` unless you've changed it:
+   ```bash
+   ssh-keygen -t ed25519 -N "" -f ~/.ssh/lgtv_ed25519
+   ssh root@TV_IP "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys" < ~/.ssh/lgtv_ed25519.pub
+   ```
+3. **Register the TV** with LG's tools (step 1 at the top of [`scripts/tv-preview.sh`](scripts/tv-preview.sh) installs them):
+   ```bash
+   tools/node_modules/.bin/ares-setup-device -a lgtv -i "host=TV_IP" -i "port=22" -i "username=root" -i "privatekey=lgtv_ed25519"
+   ```
+4. **Restart the TV** by unplugging it for 30 seconds: the power button only puts it in standby. Once a key is on the TV, the Homebrew Channel stops setting the `alpine` password at startup.
+
+Then follow the steps above from step 2. The scripts see that the TV is registered as root and install over SSH. `scripts/tv-home.sh install` also adds a small startup script, [`scripts/tv-root-boot.sh`](scripts/tv-root-boot.sh), to the Homebrew Channel's startup folder. At every boot the TV makes Developer Mode files writable by any app, and Home Helper refuses to start like that, so the script puts back safe permissions and starts Helper. It also lets Ambient Home's settings see Home Helper. `scripts/tv-home.sh remove` takes it off again.
 
 ## 🗂️ What's inside
 

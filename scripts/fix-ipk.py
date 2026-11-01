@@ -1,12 +1,12 @@
 """Give a package from LG's ares-package the owners and modes of upstream's released Helper package.
 
-ares-package 3.2.6 stores every file as 0666 and every folder as 0777, owned by the Mac user, and the TV keeps
+ares-package 3.2.6 stores every file as 0666 and every folder as 0777, owned by your computer's user, and the TV keeps
 those, so any process on the TV could change the installed apps. This rewrites the package in place: owner root,
 folders 0755, files 0644, programs 0755, and Helper's two data folders prisoner:jailer 0770 (5999:5000, the owner
 Helper's state-permissions.js trusts), exactly as in upstream's com.local.nativehome_0.6.19_arm.ipk.
 Based on upstream's scripts/fix-package-data.py (MIT); see helper/LICENSE.
 
-    python3 -I scripts/fix-ipk.py PACKAGE.ipk [...]
+    python3 -I scripts/fix-ipk.py PACKAGE.ipk [...]     (python on Windows)
 """
 import io
 import sys
@@ -46,7 +46,7 @@ def fix_tar(raw):
             name = entry.name.rstrip('/')
             if name.startswith('./'):
                 name = name[2:]
-            # Extended headers can carry the Mac user's name and IDs too; drop those.
+            # Extended headers can carry your computer user's name and IDs too; drop those.
             entry.pax_headers = {k: v for k, v in entry.pax_headers.items() if k not in ('uid', 'gid', 'uname', 'gname')}
             if entry.isdir() and name in DATA_DIRS:
                 entry.uid, entry.gid, entry.uname, entry.gname, entry.mode = 5999, 5000, 'prisoner', 'jailer', 0o770

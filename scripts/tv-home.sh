@@ -4,7 +4,7 @@
 #   remote          hold Back for about a second: LG Home opens once
 #                   press Home three times quickly: Home opens LG Home until you turn Ambient Home back on
 #   Ambient Home    Settings > Home button opens > LG Home
-#   this Mac        scripts/tv-home.sh lg, or scripts/tv-home.sh remove to take everything off the TV
+#   this computer   scripts/tv-home.sh lg, or scripts/tv-home.sh remove to take everything off the TV
 #
 #   scripts/tv-home.sh build     build both packages into build/tv; nothing on the TV changes
 #   TV_HOST=<TV IP> scripts/tv-home.sh install
@@ -19,25 +19,30 @@
 # One-time setup: steps 1-4 at the top of scripts/tv-preview.sh, then
 #   5. Zig 0.14.1, which compiles Helper's two small C programs, inside this project:
 #        python3 -m venv tools/venv && tools/venv/bin/pip install ziglang==0.14.1
+#      on Windows:
+#        python -m venv tools/venv && tools/venv/Scripts/pip install ziglang==0.14.1
 #   6. The TV's app list: node scripts/tv-sync-apps.mjs <TV IP>
 # TV_DEVICE picks another device name than "lgtv".
+#
+# On a rooted TV (Homebrew Channel), install also puts scripts/tv-root-boot.sh in the Homebrew Channel's startup
+# folder: the TV resets the apps' file modes at every boot, which would stop Helper from starting.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-DEVICE="${TV_DEVICE:-lgtv}"
+. scripts/tv-lib.sh
 APP_ID="com.local.ambienthome"
 HELPER="com.local.nativehome"
-BIN="tools/node_modules/.bin"
 STATE="/media/developer/apps/usr/palm/applications/$HELPER/state"
+ROOT_BOOT="/var/lib/webosbrew/init.d/50-ambient-home"
 
-if [ ! -x "$BIN/ares-package" ]; then
-  echo "LG's webOS CLI is missing; see step 1 at the top of scripts/tv-preview.sh." >&2
-  exit 1
-fi
+zig() {
+  local venv_python=tools/venv/bin/python
+  [ -x "$venv_python" ] || venv_python=tools/venv/Scripts/python.exe
+  "$venv_python" -I -m ziglang "$@"
+}
 
-zig() { tools/venv/bin/python -I -m ziglang "$@"; }
-
-# Runs a command in the TV's Developer Mode shell; prints its output without the CLI's [Info] lines.
+# Runs a command in the TV's shell (Developer Mode, or root on a rooted TV); prints its output without the CLI's
+# [Info] lines.
 tv() { "$BIN/ares-novacom" --device "$DEVICE" --run "$1" 2>&1 | tr -d '\r' | grep -v '^\[Info\]' || true; }
 
 installed() { "$BIN/ares-install" --device "$DEVICE" --list 2>/dev/null | grep -qx "$1"; }
@@ -46,6 +51,12 @@ installed() { "$BIN/ares-install" --device "$DEVICE" --list 2>/dev/null | grep -
 # the controller (named com.local.nativehome, or node running native.js): never a stale ID, nor the relay.
 RUNNING="pid=\$(cat $STATE/controller.pid 2>/dev/null); case \"\$pid\" in ''|*[!0-9]*) false;; *) case \"\$(tr '\\0' ' ' < /proc/\$pid/cmdline 2>/dev/null)\" in '$HELPER '*|*/$HELPER/native.js*) true;; *) false;; esac;; esac"
 running() { [ "$(tv "if $RUNNING; then echo RUNNING; fi")" = RUNNING ]; }
+
+# Rooted TV: commands there run as root, so files they write in Helper's data folder need Helper's group back;
+# tv-root-boot.sh --now does that, and lets Ambient Home's service see Helper's folder.
+root_repair() {
+  if [ -n "$ROOT" ]; then tv "sh $ROOT_BOOT --now" >/dev/null; fi
+}
 
 build() {
   if ! zig version >/dev/null 2>&1; then
@@ -64,7 +75,7 @@ build() {
   zig cc -target arm-linux-musleabi -Os -static -s helper/app/detach.c -o "$app/detach"
   zig cc -target arm-linux-musleabi -Os -static -s helper/relay/relay.c helper/relay/filter.c -o "$app/relay"
   "$BIN/ares-package" --no-minify -o build/tv "$app" "$svc"
-  python3 -I scripts/fix-ipk.py build/tv/${HELPER}_*.ipk
+  "$PYTHON" -I scripts/fix-ipk.py build/tv/${HELPER}_*.ipk
 }
 
 # Copies a file into Helper's data folder: decoded, mode set and checked, content checked, then moved into place,
@@ -73,7 +84,7 @@ build() {
 push() {
   local payload digest reply command
   payload=$(base64 < "$1" | tr -d '\n')
-  digest=$(shasum -a 256 "$1" | cut -d ' ' -f 1)
+  digest=$(sha256 "$1")
   command="umask 077
   tmp=\$(mktemp '$STATE/.upload.XXXXXX') || exit 0
   trap 'rm -f \"\$tmp\"' EXIT
@@ -114,10 +125,15 @@ case "${1:-}" in
     node scripts/tv-helper-key.mjs "$TV_HOST"
     # A Helper that is already installed must let go of the remote before it is replaced.
     if installed "$HELPER"; then stop_helper; fi
-    "$BIN/ares-install" --device "$DEVICE" build/tv/${APP_ID}_*.ipk
-    "$BIN/ares-install" --device "$DEVICE" build/tv/${HELPER}_*.ipk
+    tv_install build/tv/${APP_ID}_*.ipk
+    tv_install build/tv/${HELPER}_*.ipk
+    if [ -n "$ROOT" ]; then
+      tr -d '\r' < scripts/tv-root-boot.sh |
+        tv_ssh "mkdir -p ${ROOT_BOOT%/*} && cat > $ROOT_BOOT.tmp && chmod 755 $ROOT_BOOT.tmp && mv -f $ROOT_BOOT.tmp $ROOT_BOOT"
+    fi
     push build/helper-setup/ssap-key.json ssap-key.json 640
     push build/helper-setup/apps.json apps.json 644
+    root_repair
     echo "Installed. The Home button still opens LG Home; $0 start switches it to Ambient Home."
     ;;
   start)
@@ -131,6 +147,7 @@ case "${1:-}" in
     fi
     # Helper reads this choice when it starts; it is the same one Ambient Home's Settings changes.
     tv "printf '{\"enabled\":true}' > $STATE/home-control.json.tmp && chmod 660 $STATE/home-control.json.tmp && mv -f $STATE/home-control.json.tmp $STATE/home-control.json" >/dev/null
+    root_repair
     "$BIN/ares-launch" --device "$DEVICE" "$HELPER" --params '{"nativeHomeStart":true}' >/dev/null
     for _ in 1 2 3 4 5 6 7 8 9 10; do
       if running; then
@@ -168,13 +185,16 @@ case "${1:-}" in
       # Cancel Helper's start with the TV first, then stop it, then uninstall.
       tv "luna-send-pub -n 1 luna://$HELPER.service/disable '{}'" >/dev/null
       stop_helper
+      if [ -n "$ROOT" ]; then
+        tv "rm -f $ROOT_BOOT; umount /var/palm/jail/com.local.ambienthome.service/media/developer/apps/usr/palm/applications/$HELPER 2>/dev/null" >/dev/null
+      fi
       "$BIN/ares-install" --device "$DEVICE" --remove "$HELPER"
     fi
     for app in "$APP_ID" com.local.ambientwallpaper; do
       if installed "$app"; then "$BIN/ares-install" --device "$DEVICE" --remove "$app"; fi
     done
     rm -rf build/helper-setup
-    echo "Removed. The TV is back to LG's own Home. The pairing keys stay in .lgtv-key.json; delete that file to remove them from this Mac."
+    echo "Removed. The TV is back to LG's own Home. The pairing keys stay in .lgtv-key.json; delete that file to remove them from this computer."
     ;;
   *)
     sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'

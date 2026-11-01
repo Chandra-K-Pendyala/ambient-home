@@ -8,7 +8,7 @@
 #   scripts/tv-preview.sh [--wallpaper] --build    only build the package, into build/tv
 #   scripts/tv-preview.sh [--wallpaper] --remove   uninstall it from the TV
 #
-# One-time setup (Mac and TV on the same network):
+# One-time setup (computer and TV on the same network; on Windows, run the scripts in Git Bash):
 #   1. LG's webOS CLI, inside this project:
 #        npm install --prefix tools @webos-tools/cli@3.2.6 --ignore-scripts --no-save --no-package-lock
 #   2. On the TV, open the Developer Mode app, turn on Dev Mode (the TV restarts), then turn on Key Server.
@@ -16,12 +16,12 @@
 #        tools/node_modules/.bin/ares-setup-device -a lgtv -i "host=TV_IP" -i "port=9922" -i "username=prisoner"
 #   4. Fetch the TV's key, typing the passphrase the Developer Mode app shows when asked:
 #        tools/node_modules/.bin/ares-novacom --device lgtv --getkey
+#   A rooted TV (Homebrew Channel) skips steps 2-4: see "Rooted TV" in the README.
 # TV_DEVICE picks another device name than "lgtv".
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-DEVICE="${TV_DEVICE:-lgtv}"
-BIN="tools/node_modules/.bin"
+. scripts/tv-lib.sh
 APP_ID="com.local.ambienthome"
 ACTION=install
 for arg in "$@"; do
@@ -32,11 +32,6 @@ for arg in "$@"; do
     *) echo "Unknown option: $arg (see the top of $0)" >&2; exit 1 ;;
   esac
 done
-
-if [ ! -x "$BIN/ares-package" ]; then
-  echo "LG's webOS CLI is missing; see step 1 at the top of $0." >&2
-  exit 1
-fi
 
 if [ "$ACTION" = remove ]; then
   "$BIN/ares-install" --device "$DEVICE" --remove "$APP_ID"
@@ -63,13 +58,13 @@ else
   stage=build/tv/home-app
   rm -rf "$stage" build/tv/home-service
   mkdir -p build/tv/home-service
-  rsync -a --exclude='*.svg' --exclude='*.py' --exclude='wallpaper*' prototype/ "$stage/"
+  copy_tree prototype "$stage" '*.svg' '*.py' 'wallpaper*'
   cp home-service/*.js home-service/*.json build/tv/home-service/
   "$BIN/ares-package" --no-minify -o build/tv "$stage" build/tv/home-service
 fi
 # ares-package makes every file writable by anyone on the TV; give the package safe owners and modes.
-python3 -I scripts/fix-ipk.py build/tv/${APP_ID}_*.ipk
+"$PYTHON" -I scripts/fix-ipk.py build/tv/${APP_ID}_*.ipk
 [ "$ACTION" = build ] && exit 0
 
-"$BIN/ares-install" --device "$DEVICE" build/tv/${APP_ID}_*.ipk
+tv_install build/tv/${APP_ID}_*.ipk
 "$BIN/ares-launch" --device "$DEVICE" "$APP_ID"
