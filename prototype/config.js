@@ -46,6 +46,7 @@ window.HOME_CONFIG = {
   ],
 
   // Demo rows. Real ones need a Plex, Emby or Jellyfin server and Home Assistant.
+  // show: false takes a row off the home screen (for example HOME_CONFIG.media.show = false in config.local.js).
   media: {
     source: 'Media server',
     items: [

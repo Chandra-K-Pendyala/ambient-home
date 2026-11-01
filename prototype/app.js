@@ -12,6 +12,7 @@
   var ui = byId('ui');
   var idleMinutes = C.idleMinutes;
   var scope = ui, current = null, page = 'a', stack = [], memory = {};
+  var moving = null, okDown = false, holdTimer = null;
   var idleOn = false, idleTimer = null, idleMover = null, sleepTimer = null, toastTimer = null, helpTimer = null, launchTimer = null;
   var lastWheel = 0, lastActivity = 0;
 
@@ -102,14 +103,59 @@
 
   function buildRows() {
     var apps = byId('appsTrack'), inputs = byId('inputsTrack'), media = byId('mediaTrack'), home = byId('homeTrack');
-    C.dock.forEach(function (id) { apps.appendChild(appTile(id, 1, 'dock')); });
+    savedDockOrder(C.dock).forEach(function (id) { apps.appendChild(appTile(id, 1, 'dock')); });
     apps.appendChild(allAppsTile());
     C.inputs.forEach(function (inp) { inputs.appendChild(inputTile(inp)); });
-    C.media.items.forEach(function (item) { media.appendChild(mediaCard(item)); });
-    C.home.items.forEach(function (item) { home.appendChild(homeTile(item)); });
+    if (C.media.show !== false) C.media.items.forEach(function (item) { media.appendChild(mediaCard(item)); });
+    if (C.home.show !== false) C.home.items.forEach(function (item) { home.appendChild(homeTile(item)); });
     byId('mediaChip').textContent = C.media.source + ' · demo';
     byId('homeChip').textContent = C.home.source + ' · demo';
+    // A row turned off in the config leaves the screen; Up and Down skip it, as they skip any row without tiles.
+    var below = [];
+    [['media', 'Continue watching'], ['home', 'Home']].forEach(function (r) {
+      if (C[r[0]].show === false) { byId(r[0] + 'Label').style.display = byId(r[0] + 'Row').style.display = 'none'; }
+      else below.push(r[1]);
+    });
+    var hint = byId('pageA').querySelector('.more-hint');
+    if (below.length) hint.innerHTML = '&darr;&nbsp; ' + below.join(' &middot; ');
+    else hint.style.display = 'none';
     byId('settingsButton').innerHTML = ART.gear();
+  }
+
+  // ---------- Arranging the Apps row: hold OK on an app, move it with Left and Right, OK or Back to finish ----------
+  // The order is kept in this app's storage on the TV; apps added later go at the end.
+  var DOCK_ORDER = 'ambientHome.dockOrder';
+
+  function savedDockOrder(dock) {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(DOCK_ORDER)); } catch (e) { /* no saved order */ }
+    if (!(saved instanceof Array)) return dock;
+    var order = saved.filter(function (id) { return dock.indexOf(id) >= 0; });
+    return order.concat(dock.filter(function (id) { return order.indexOf(id) < 0; }));
+  }
+
+  function canArrange(e) { return !stack.length && !!e && e.dataset.action === 'app' && e.parentNode === byId('appsTrack'); }
+
+  function startMoving(e) {
+    moving = e;
+    e.classList.add('is-moving');
+    toast('Move ' + e.dataset.title + ' with ◀ ▶, then press OK');
+  }
+
+  function shiftMoving(dir) {
+    var other = dir === 'left' ? moving.previousSibling : moving.nextSibling;
+    if (!other || other.dataset.action !== 'app') return;
+    moving.parentNode.insertBefore(moving, dir === 'left' ? other : other.nextSibling);
+    setFocus(moving);
+  }
+
+  function stopMoving() {
+    var order = [];
+    moving.classList.remove('is-moving');
+    moving = null;
+    each(byId('appsTrack').children, function (t) { if (t.dataset.action === 'app') order.push(t.dataset.id); });
+    try { localStorage.setItem(DOCK_ORDER, JSON.stringify(order)); toast('Apps row saved'); }
+    catch (e) { toast('Could not save the order; it lasts until Ambient Home closes'); }
   }
 
   function buildAllApps() {
@@ -156,7 +202,7 @@
   function memoryKey(row) { return scope.id + ':' + row; }
 
   function move(dir) {
-    if (!current) return;
+    if (!current || moving) return;
     var map = rowsIn(scope), row = +current.dataset.row, list = map[row], i = list.indexOf(current);
     if (dir === 'left' || dir === 'right') {
       var next = list[i + (dir === 'left' ? -1 : 1)];
@@ -514,6 +560,14 @@
     toastTimer = setTimeout(function () { t.classList.remove('is-on'); }, 2600);
   }
 
+  // The settings row shows the coordinates from config.local.js; without them the weather is a demo.
+  function showWeatherLocation() {
+    var w = C.weather, v = document.querySelector('[data-action="weatherloc"] .set-value');
+    if (v && w.latitude != null && w.longitude != null) {
+      v.textContent = w.latitude.toFixed(2) + ', ' + w.longitude.toFixed(2) + ' · live weather';
+    }
+  }
+
   function toggleHelp(show) {
     var help = byId('help');
     if (show == null) show = help.classList.contains('is-faded');
@@ -545,7 +599,16 @@
     var key = KEYS[code];
     if (!key) return;
     ev.preventDefault();
-    if (key === 'ok' && ev.repeat) return;
+    if (key === 'ok') {
+      // The remote repeats OK while it is held: count one press until it is let go.
+      if (okDown || ev.repeat) return;
+      okDown = true;
+    }
+    if (moving) {
+      if (key === 'left' || key === 'right') shiftMoving(key);
+      else if (key === 'ok' || key === 'back') stopMoving();
+      return;
+    }
     if (stack.length && !current) {
       if (key === 'ok' || key === 'back') closeOverlay();
       return;
@@ -555,8 +618,29 @@
       else if (page === 'b') setFocus(memory['ui:1'] || byId('appsTrack').firstChild);
       return;
     }
-    if (key === 'ok') { activate(current); return; }
+    if (key === 'ok') {
+      // On an app in the Apps row, OK opens it when let go; held for a moment, it picks the app up to move it.
+      if (canArrange(current)) {
+        var held = current;
+        holdTimer = setTimeout(function () { holdTimer = null; startMoving(held); }, 600);
+      } else {
+        activate(current);
+      }
+      return;
+    }
     move(key);
+  }
+
+  function onKeyUp(ev) {
+    if (KEYS[ev.keyCode] !== 'ok') return;
+    okDown = false;
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; activate(current); }
+  }
+
+  // A press that never comes back up (the app hidden while OK is held) must not lock OK.
+  function releaseOk() {
+    okDown = false;
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
   }
 
   function targetOf(ev) { return ev.target && ev.target.closest ? ev.target.closest('[data-row]') : null; }
@@ -569,11 +653,12 @@
     var now = Date.now();
     if (now - lastActivity > 1000) { lastActivity = now; resetIdle(); }
     var t = targetOf(ev);
-    if (t && t !== current && scope.contains(t)) setFocus(t);
+    if (t && t !== current && !moving && scope.contains(t)) setFocus(t);
   }
 
   function onClick(ev) {
     if (idleOn) { exitIdle(); return; }
+    if (moving) { stopMoving(); return; }
     if (stack.length && !current) { closeOverlay(); return; }
     var t = targetOf(ev);
     if (t && scope.contains(t)) { setFocus(t); activate(t); }
@@ -648,13 +733,19 @@
   setFocus(byId('appsTrack').firstChild);
   moveIdle();
   resetIdle();
-  toggleHelp(true);
+  showWeatherLocation();
+  // The preview controls are for trying it out in a browser; on the TV the coloured buttons still work, unannounced.
+  toggleHelp(!onTv());
   setInterval(pixelShift, 180000);
   document.addEventListener('keydown', onKey);
+  document.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', releaseOk);
   if (window.PalmSystem && wantsHelper(window.PalmSystem.launchParams)) openSettings();
   document.addEventListener('webOSRelaunch', function (ev) { if (wantsHelper(ev.detail)) openSettings(); });
   // When an app takes over the screen, put the home screen back so it is ready when you return.
   document.addEventListener('visibilitychange', function () {
+    if (document.hidden) releaseOk();
+    if (document.hidden && moving) stopMoving();
     if (document.hidden && stack.length && stack[stack.length - 1].ov.id === 'launch') closeOverlay();
   });
   stage.addEventListener('mousemove', onPointerMove);
