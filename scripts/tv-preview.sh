@@ -58,14 +58,11 @@ if [ "$APP_ID" = com.local.ambientwallpaper ]; then
   cp prototype/wallpaper.appinfo.json "$stage/appinfo.json"
   "$BIN/ares-package" --no-minify -o build/tv "$stage"
 else
-  # Ambient Home comes with its own small service (home-service/), which Settings uses to switch the Home button.
   # The logo sources, the script that turns them into glyphs.js and the wallpaper's own files stay off the TV.
   stage=build/tv/home-app
   rm -rf "$stage" build/tv/home-service
-  mkdir -p build/tv/home-service
   rsync -a --exclude='*.svg' --exclude='*.py' --exclude='wallpaper*' prototype/ "$stage/"
-  cp home-service/*.js home-service/*.json build/tv/home-service/
-  "$BIN/ares-package" --no-minify -o build/tv "$stage" build/tv/home-service
+  "$BIN/ares-package" --no-minify -o build/tv "$stage"
 fi
 # ares-package makes every file writable by anyone on the TV; give the package safe owners and modes.
 python3 -I scripts/fix-ipk.py build/tv/${APP_ID}_*.ipk

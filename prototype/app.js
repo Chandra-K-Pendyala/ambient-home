@@ -344,10 +344,11 @@
   }
 
   // ---------- Home button (Home Helper) ----------
-  // Settings asks this app's own service (home-service/) where the Home button goes. The service passes the choice to
-  // Home Helper (helper/), which watches the remote; pressing Home three times stops Helper until it is started again.
-  var HOME_SERVICE = 'luna://com.local.ambienthome.service/';
-  var helper = null;
+  // Home Helper (helper/) watches the remote and opens this app when Home is pressed; pressing Home three times stops
+  // it until it is started again. webOS keeps each app's files and services to itself, so Settings asks Helper by
+  // opening it with a request ({ homeRequest }), and Helper answers by opening this app with the answer ({ homeReply }).
+  var HELPER_APP = 'com.local.nativehome';
+  var helper = null, helperAsk = null;
 
   function homeNote(text) { byId('homeNote').textContent = text; }
 
@@ -362,88 +363,104 @@
     if (onTv()) refreshHome();
   }
 
+  function requestId() {
+    var bytes = new Uint8Array(16), id = '', i;
+    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for (i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+    for (i = 0; i < 16; i++) id += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16);
+    return id;
+  }
+
+  // One request at a time. done(answer) gets Helper's answer { returnValue, running, blocked, enabled }, or
+  // { missing: true } when Helper could not be opened, or { timeout: true } when it did not answer in time.
+  function askHelper(method, enabled, done) {
+    var id = requestId(), request = { id: id, method: method };
+    if (typeof enabled === 'boolean') request.enabled = enabled;
+    // Starting Helper takes a few seconds; its answer comes once it runs.
+    helperAsk = { id: id, done: done, timer: setTimeout(function () { helperAnswer({ id: id, timeout: true }); }, method === 'setHomeControl' ? 15000 : 8000) };
+    callLuna('luna://com.webos.applicationManager/launch', { id: HELPER_APP, params: { homeRequest: request } }, function (r) {
+      if (r.returnValue === false) helperAnswer({ id: id, missing: true });
+    });
+  }
+
+  function helperAnswer(answer) {
+    if (!helperAsk || !answer || answer.id !== helperAsk.id) return;
+    var ask = helperAsk;
+    helperAsk = null;
+    clearTimeout(ask.timer);
+    ask.done(answer);
+  }
+
   function refreshHome() {
+    if (helperAsk) return;
     homeNote('Checking the Home button…');
-    callLuna(HOME_SERVICE + 'helperStatus', {}, function (s) {
-      helper = s.returnValue ? s : null;
-      if (!helper || !helper.installed || !helper.running) {
-        showHomeChoice('lg');
-        homeNote(!helper ? 'Could not reach Home Helper, so Home opens LG Home.' :
-          !helper.installed ? 'Home Helper is not installed, so Home opens LG Home.' :
-          helper.blocked ? 'Home was pressed three times, so it opens LG Home. Choose This home screen to turn it back on.' :
-          'Home Helper is off, so Home opens LG Home. Choose This home screen to turn it on.');
-        return;
-      }
-      callLuna(HOME_SERVICE + 'homeStatus', {}, function (r) {
-        if (r.returnValue !== true || typeof r.enabled !== 'boolean') {
-          homeNote('Home Helper did not answer. The Home button may still work.');
-          return;
-        }
-        showHomeChoice(r.enabled ? 'ours' : 'lg');
-        homeNote(r.enabled ? 'Home, and leaving an app, bring you here.' : 'Home opens LG Home.');
-      });
-    });
+    askHelper('homeStatus', null, showHelperState);
   }
 
-  function setHomeButton(ours) {
+  function showHelperState(a) {
+    if (a.timeout) {
+      helper = null;
+      homeNote('Home Helper did not answer. The Home button may still work.');
+      return;
+    }
+    helper = a.returnValue === true ? a : null;
     if (helper && helper.running) {
-      homeNote('Changing the Home button…');
-      callLuna(HOME_SERVICE + 'setHomeControl', { enabled: ours }, function (r) {
-        if (r.returnValue !== true) toast('The Home button did not change. Try again.');
-        refreshHome();
-      });
-    } else if (ours && helper && helper.installed) {
-      // Starting Helper ends the stop from pressing Home three times. It keeps the last choice, so set it afterwards.
-      homeNote('Starting Home Helper…');
-      callLuna('luna://com.webos.applicationManager/launch', { id: 'com.local.nativehome', params: { nativeHomeStart: true } }, function (r) {
-        if (r.returnValue === false) {
-          toast('Could not start Home Helper');
-          refreshHome();
-          return;
-        }
-        waitForHelper(10, function (ok) {
-          if (ok) setHomeButton(true);
-          else {
-            toast('Home Helper did not start');
-            refreshHome();
-          }
-        });
-      });
-    } else refreshHome();
+      showHomeChoice(helper.enabled ? 'ours' : 'lg');
+      homeNote(helper.enabled ? 'Home, and leaving an app, bring you here.' : 'Home opens LG Home.');
+      return;
+    }
+    showHomeChoice('lg');
+    homeNote(a.missing ? 'Home Helper is not installed, so Home opens LG Home.' :
+      !helper ? 'Home Helper could not check the Home button, so Home may open LG Home.' :
+      helper.blocked ? 'Home was pressed three times, so it opens LG Home. Choose This home screen to turn it back on.' :
+      'Home Helper is off, so Home opens LG Home. Choose This home screen to turn it on.');
   }
 
-  function waitForHelper(tries, done) {
-    callLuna(HOME_SERVICE + 'helperStatus', {}, function (s) {
-      if (s.returnValue && s.running) {
-        helper = s;
-        done(true);
-      } else if (tries > 1) setTimeout(function () { waitForHelper(tries - 1, done); }, 1000);
-      else done(false);
+  // Choosing This home screen also starts Helper when it is stopped, which ends the stop from pressing Home three times.
+  function setHomeButton(ours) {
+    if (helperAsk) {
+      toast('Still waiting for Home Helper. Try again in a moment.');
+      return;
+    }
+    homeNote(ours && !(helper && helper.running) ? 'Starting Home Helper…' : 'Changing the Home button…');
+    askHelper('setHomeControl', ours, function (a) {
+      showHelperState(a);
+      if (a.returnValue === true) toast(a.running && a.enabled ? 'Home opens this home screen.' : 'Home opens LG Home.');
+      else if (!a.missing && !a.timeout) toast('The Home button did not change. Try again.');
     });
   }
 
-  // Through Helper when it runs, so it does not bring you straight back here.
+  // Through Helper when it runs, so it does not bring you straight back here. Helper does not answer this request:
+  // opening this app with the answer would leave LG Home at once.
   function openLgHome() {
     if (!onTv()) {
       toast('On the TV this opens LG Home once and keeps your choice.');
       return;
     }
-    var running = helper && helper.running;
-    callLuna(running ? HOME_SERVICE + 'openLGHome' : 'luna://com.webos.applicationManager/launch', running ? {} : { id: 'com.webos.app.home' }, function (r) {
+    var viaHelper = helper && helper.running;
+    callLuna('luna://com.webos.applicationManager/launch', viaHelper ?
+      { id: HELPER_APP, params: { homeRequest: { id: requestId(), method: 'openLGHome' } } } : { id: 'com.webos.app.home' }, function (r) {
       if (r.returnValue === false) toast('Could not open LG Home');
       else closeOverlay();
     });
   }
 
-  // Opening "Home Helper" in LG's app list starts this app with showHelper: show the Home settings.
-  function wantsHelper(raw) {
+  // Launch parameters, as an object. webOS adds keys of its own (displayAffinity).
+  function paramsOf(raw) {
     try {
-      if (raw && raw.params) raw = raw.params;
       var params = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      return !!(params && params.showHelper === true);
+      return params && typeof params === 'object' ? params : {};
     } catch (e) {
-      return false;
+      return {};
     }
+  }
+
+  // Helper opens this app whenever Home is pressed, also when it is already on screen. Show the home screen itself,
+  // so Home always does something you can see: wake the idle screen and close any open sheet.
+  function comeHome() {
+    if (idleOn) exitIdle();
+    else resetIdle();
+    while (stack.length) closeOverlay();
   }
 
   // ---------- Overlays ----------
@@ -660,11 +677,23 @@
   toggleHelp(true);
   setInterval(pixelShift, 180000);
   document.addEventListener('keydown', onKey);
-  if (window.PalmSystem && wantsHelper(window.PalmSystem.launchParams)) openSettings();
-  document.addEventListener('webOSRelaunch', function (ev) { if (wantsHelper(ev.detail)) openSettings(); });
-  // When an app takes over the screen, put the home screen back so it is ready when you return.
+  // Opening "Home Helper" in LG's app list starts this app with showHelper: show the Home settings.
+  if (window.PalmSystem && paramsOf(window.PalmSystem.launchParams).showHelper === true) openSettings();
+  document.addEventListener('webOSRelaunch', function (ev) {
+    var params = paramsOf(ev.detail);
+    if (params.homeReply) helperAnswer(params.homeReply);
+    else if (params.showHelper === true) openSettings();
+    else comeHome();
+  });
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden && stack.length && stack[stack.length - 1].ov.id === 'launch') closeOverlay();
+    if (document.hidden) {
+      // webOS freezes this page while another app is on screen, and a frozen idle countdown fires the moment the page
+      // is back: the idle screen came up right after Home. Count only while the home screen is on screen.
+      clearTimeout(idleTimer);
+      // When an app takes over the screen, put the home screen back so it is ready when you return.
+      if (stack.length && stack[stack.length - 1].ov.id === 'launch') closeOverlay();
+    } else if (idleOn) exitIdle();
+    else resetIdle();
   });
   stage.addEventListener('mousemove', onPointerMove);
   stage.addEventListener('click', onClick);

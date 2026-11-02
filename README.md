@@ -78,7 +78,7 @@ flowchart LR
 | Where | How | What happens |
 | :-- | :-- | :-- |
 | 🎛️ Remote | Hold **Back** for about a second | LG Home opens once |
-| 🎛️ Remote | Press **Home** three times quickly | Home opens LG Home until you turn Ambient Home back on |
+| 🎛️ Remote | Press **Home** three times quickly | Home opens LG Home, also after a restart, until you open **Home Helper** in LG's app list and choose *This home screen* |
 | ⚙️ Ambient Home | Settings → *Home button opens* → **LG Home** | Switch whenever you like |
 | 💻 Computer | `scripts/tv-home.sh lg` or `scripts/tv-home.sh remove` | Switch back, or take everything off the TV |
 | 🧯 Safety net | Helper stops answering, or button presses get lost | The relay lets go of the remote and turns itself off |
@@ -121,7 +121,6 @@ You need an LG webOS TV with **Developer Mode** turned on (LG's Developer Mode a
 | Folder | What lives there |
 | :-- | :-- |
 | [`prototype/`](prototype) | Both apps, in plain ES5 for 1920×1080: Ambient Home (`index.html`, `app.js`), Ambient Wallpaper (`wallpaper.html`, `wallpaper.js`) and the living lakeside they share (`scene.js`, `scene.css`) |
-| [`home-service/`](home-service) | Ambient Home's small on-TV service, which switches the Home button |
 | [`helper/`](helper) | Home Helper, reviewed and built from source; [every change from upstream](helper/README.md) |
 | [`scripts/`](scripts) | Preview, sync, build and install tools |
 | [`docs/`](docs) | The screenshots above |
@@ -146,7 +145,7 @@ Ambient Home was built in a few evenings of conversation with Claude Code. [The 
 
 ## 📄 License
 
-[MIT](LICENSE). Bundled third-party parts keep their own licenses: [`helper/LICENSE`](helper/LICENSE), [`home-service/LICENSE`](home-service/LICENSE), [`prototype/fonts/OFL.txt`](prototype/fonts/OFL.txt) and [`prototype/icons/`](prototype/icons).
+[MIT](LICENSE). Bundled third-party parts keep their own licenses: [`helper/LICENSE`](helper/LICENSE), [`prototype/fonts/OFL.txt`](prototype/fonts/OFL.txt) and [`prototype/icons/`](prototype/icons).
 
 <div align="center">
 
