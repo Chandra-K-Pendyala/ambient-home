@@ -10,7 +10,7 @@
 
   var stage = byId('stage');
   var ui = byId('ui');
-  var idleMinutes = C.idleMinutes;
+  var idleMinutes = savedIdleMinutes();
   var scope = ui, current = null, page = 'a', stack = [], memory = {};
   var idleOn = false, idleTimer = null, idleMover = null, sleepTimer = null, toastTimer = null, helpTimer = null, launchTimer = null;
   var lastWheel = 0, lastActivity = 0;
@@ -337,6 +337,7 @@
       else toast(e.dataset.value === 'lg' ? 'Home button now opens LG Home. Switch back here any time.' : 'Home button opens this home screen.');
     } else {
       idleMinutes = +e.dataset.value;
+      try { localStorage.setItem('idleMinutes', idleMinutes); } catch (err) { /* not saved; this visit still uses it */ }
       toast(idleMinutes ? 'Idle screen after ' + idleMinutes + ' min' : 'Idle screen off');
       resetIdle();
     }
@@ -469,6 +470,13 @@
   }
 
   // ---------- OLED-safe idle screen ----------
+  // The choice in Settings is kept, so it survives webOS restarting the app or the TV.
+  function savedIdleMinutes() {
+    var saved = null;
+    try { saved = localStorage.getItem('idleMinutes'); } catch (err) { /* storage off: use the default */ }
+    return saved !== null && /^(0|1|5|10)$/.test(saved) ? +saved : C.idleMinutes;
+  }
+
   function resetIdle() {
     clearTimeout(idleTimer);
     if (idleMinutes > 0) idleTimer = setTimeout(enterIdle, idleMinutes * 60000);
@@ -639,13 +647,14 @@
   if (/Web0S|webOS/i.test(navigator.userAgent)) document.body.classList.add('on-tv');
   fit();
   window.addEventListener('resize', fit);
-  // The living lakeside rests while the idle screen is up.
-  SCENE.mount(stage, { paused: function () { return idleOn; } });
+  // The living lakeside rests while the idle screen is up, and while another app is on screen.
+  SCENE.mount(stage, { paused: function () { return idleOn || document.hidden; } });
   byId('wallpaper').appendChild(el('div', 'dim fill'));
   buildRows();
   buildAllApps();
   buildLaunchFx();
   setFocus(byId('appsTrack').firstChild);
+  each(document.querySelectorAll('[data-group="idle"]'), function (o) { o.classList.toggle('is-selected', +o.dataset.value === idleMinutes); });
   moveIdle();
   resetIdle();
   toggleHelp(true);
