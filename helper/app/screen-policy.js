@@ -1,5 +1,8 @@
 'use strict';
-module.exports=function(apps){
+// isHome(id): is id the home screen Home opens? Leaving it for LG Home is never an exit to bounce back from, even
+// when it is in apps: if it closes or fails to start, LG Home stays instead of a launch loop.
+module.exports=function(apps,isHome){
+ if(typeof isHome!=='function')isHome=function(id){return id==='com.local.ambienthome';};
  var previous=null,gapSince=null,backSince=null,backUntil=0,backConsumed=false;
  function clearBack(){backSince=null;backUntil=0;backConsumed=false;}
  return {
@@ -16,11 +19,11 @@ module.exports=function(apps){
     if(gapSince===null)gapSince=now;
     return false;
    }
-   if(id==='com.local.ambienthome')clearBack();
+   if(isHome(id))clearBack();
    var intentionalHome=id==='com.webos.app.home'&&!backConsumed&&
     ((backSince!==null&&now-backSince>=700&&now-backSince<=10000)||(backUntil>0&&now<=backUntil));
    if(intentionalHome){backConsumed=true;backUntil=0;}
-   var redirect=!intentionalHome&&id==='com.webos.app.home'&&apps.indexOf(previous)!==-1&&
+   var redirect=!intentionalHome&&id==='com.webos.app.home'&&apps.indexOf(previous)!==-1&&!isHome(previous)&&
     (gapSince===null||now-gapSince<=2500);
    previous=id;gapSince=null;return redirect;
   }

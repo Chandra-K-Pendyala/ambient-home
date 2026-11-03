@@ -5,7 +5,8 @@
 //                  the TV is on (Helper uses this to bring you back to Ambient Home), and turn the TV off, which the
 //                  TV requires for reading the power state. It cannot open apps or press buttons. The first run shows
 //                  a prompt on the TV; the key is also kept in .lgtv-key.json so a reinstall needs no new prompt.
-//   apps.json      the TV's apps, from prototype/tv-apps.js: leaving one of them for LG Home returns to Ambient Home.
+//   apps.json      the TV's apps, from prototype/tv-apps.js: leaving one of them for LG Home returns to the home screen
+//                  the Home button opens (Ambient Home, or the one chosen in Settings).
 //
 //   node scripts/tv-helper-key.mjs <TV IP>
 import { mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
@@ -50,7 +51,9 @@ try {
   tv.close();
 }
 
-const skip = ['com.local.ambienthome', 'com.local.nativehome', 'com.webos.app.home'];
+// Home screens stay in the list: leaving one that Home does not open returns to the one it does. Helper never brings
+// you back to the chosen home screen after leaving it (helper/app/screen-policy.js), so it cannot loop.
+const skip = ['com.local.nativehome', 'com.webos.app.home'];
 const ids = synced.apps.map((a) => a.id).filter((id) => !skip.includes(id));
 const dir = join(ROOT, 'build/helper-setup');
 mkdirSync(dir, { recursive: true });

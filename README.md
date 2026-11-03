@@ -85,6 +85,13 @@ flowchart LR
 
 <img src="docs/screenshots/settings.jpg" alt="Ambient Home's settings: Home button opens this home screen or LG Home, open LG Home once, idle screen and weather" width="100%">
 
+### 🔁 Another home screen of yours
+
+- Home Helper can open another home screen app you installed yourself in Developer Mode, instead of Ambient Home. Its app id must look like `com.local.<name>`.
+- List it in `prototype/config.local.js`: `HOME_CONFIG.otherHomes = [{ id: 'com.local.<name>', name: 'Its name' }];` It then shows in Settings → *Home button opens*, between *This home screen* and *LG Home*. Its own Settings can offer the same choice (it opens Home Helper with the same requests).
+- From your computer: `scripts/tv-home.sh start com.local.<name>`.
+- Leaving an app returns to the home screen you picked. Helper never reopens the home screen you picked after it closes or fails to start, so a broken one cannot cause a loop: LG Home stays.
+
 ## 🚀 Get started
 
 ### 👀 Preview it on your computer
@@ -111,7 +118,7 @@ You need an LG webOS TV with **Developer Mode** turned on (LG's Developer Mode a
    HOME_CONFIG.apps.iptv.appId = 'your.iptv.app.id';
    ```
 5. **Just the wallpaper?** `scripts/tv-preview.sh --wallpaper` installs Ambient Wallpaper as its own app. It leaves the Home button alone; OK on the remote hides or shows the clock.
-6. **Take over the Home button**: run `TV_HOST=<TV IP> scripts/tv-home.sh install`, then `scripts/tv-home.sh start`. The script header explains the one extra tool it needs (the Zig compiler, installed inside the project). `status`, `lg` and `remove` are there whenever you need them.
+6. **Take over the Home button**: run `TV_HOST=<TV IP> scripts/tv-home.sh install`, then `scripts/tv-home.sh start` (or `scripts/tv-home.sh start com.local.<name>` for another home screen of yours). The script header explains the one extra tool it needs (the Zig compiler, installed inside the project). `status`, `lg` and `remove` are there whenever you need them.
 
 > [!TIP]
 > Developer Mode sessions expire. Extend yours in LG's Developer Mode app now and then: when a session runs out, the TV removes Developer Mode apps and Home goes back to LG Home.

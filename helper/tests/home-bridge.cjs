@@ -28,7 +28,7 @@ const run=f=>{f.set(data+'/controller.pid','4321');f.set('/proc/4321/cmdline','n
 // Status while stopped by three Home presses.
 let t=setup(new Map([[data+'/blocked','stopped'],[data+'/home-control.json','{"enabled":true}']]));
 t.ask({id:ID,method:'homeStatus'});
-assert.deepEqual(t.reply(),{running:false,blocked:true,enabled:true,id:ID,returnValue:true});assert.deepEqual(t.codes,[0]);assert.equal(t.starts,0);
+assert.deepEqual(t.reply(),{running:false,blocked:true,enabled:true,launcher:'com.local.ambienthome',id:ID,returnValue:true});assert.deepEqual(t.codes,[0]);assert.equal(t.starts,0);
 
 // Status while running; a stale PID that belongs to another process is not Helper.
 t=setup(new Map([[data+'/home-control.json','{"enabled":false}']]));run(t.files);
@@ -40,9 +40,9 @@ t.ask({id:ID,method:'homeStatus'});assert.equal(t.reply().running,false);assert.
 t=setup(new Map([[data+'/blocked','stopped'],[data+'/home-control.json','{"enabled":false}']]));
 t.onStart=()=>{run(t.files);t.files.delete(data+'/blocked');};
 t.ask({id:ID,method:'setHomeControl',enabled:true});
-assert.equal(t.files.get(data+'/home-control.json'),'{"enabled":true}');assert.equal(t.starts,1);
+assert.equal(t.files.get(data+'/home-control.json'),'{"enabled":true,"launcher":"com.local.ambienthome"}');assert.equal(t.starts,1);
 t.advance(250);
-assert.deepEqual(t.reply(),{running:true,blocked:false,enabled:true,id:ID,returnValue:true});assert.deepEqual(t.codes,[0]);
+assert.deepEqual(t.reply(),{running:true,blocked:false,enabled:true,launcher:'com.local.ambienthome',id:ID,returnValue:true});assert.deepEqual(t.codes,[0]);
 
 // ... and a controller that never starts is reported after 10 seconds, not before.
 t=setup(new Map([[data+'/blocked','stopped']]));
@@ -52,8 +52,8 @@ t.advance(400);assert.equal(t.reply().returnValue,false);assert.equal(t.reply().
 // LG Home while stopped: only the saved choice changes; Helper is not started.
 t=setup(new Map([[data+'/blocked','stopped']]));
 t.ask({id:ID,method:'setHomeControl',enabled:false});
-assert.equal(t.starts,0);assert.equal(t.files.get(data+'/home-control.json'),'{"enabled":false}');
-assert.deepEqual(t.reply(),{running:false,blocked:true,enabled:false,id:ID,returnValue:true});
+assert.equal(t.starts,0);assert.equal(t.files.get(data+'/home-control.json'),'{"enabled":false,"launcher":"com.local.ambienthome"}');
+assert.deepEqual(t.reply(),{running:false,blocked:true,enabled:false,launcher:'com.local.ambienthome',id:ID,returnValue:true});
 
 // Running controller: the request goes through its files; an old answer with another ID never counts.
 t=setup(new Map([[data+'/home-control.json','{"enabled":true}'],[data+'/home-response.json','{"id":"ffffffffffffffffffffffffffffffff","returnValue":true}']]));run(t.files);
@@ -62,7 +62,7 @@ const request=JSON.parse(t.files.get(data+'/home-request.json'));
 assert.deepEqual(request,{id:ID,method:'setHomeControl',enabled:false,expires:6000});assert.equal(t.starts,0);
 t.advance(300);assert.equal(t.launches.length,0,'waits for its own answer');
 t.files.set(data+'/home-control.json','{"enabled":false}');t.files.set(data+'/home-response.json',JSON.stringify({id:ID,returnValue:true,enabled:false}));
-t.advance(100);assert.deepEqual(t.reply(),{running:true,blocked:false,enabled:false,id:ID,returnValue:true});
+t.advance(100);assert.deepEqual(t.reply(),{running:true,blocked:false,enabled:false,launcher:'com.local.ambienthome',id:ID,returnValue:true});
 
 // ... and a controller that does not answer within 5 seconds is reported.
 t=setup(new Map());run(t.files);

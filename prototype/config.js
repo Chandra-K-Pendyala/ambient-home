@@ -18,6 +18,10 @@ window.HOME_CONFIG = {
     demo: { temperature: 14, high: 17, low: 9, condition: 'partly', sunrise: '06:30', sunset: '18:30' }
   },
 
+  // Other home screens of yours that the Home button can open instead, offered in Settings > Home button opens, as
+  // { id: 'com.local.<name>', name: 'Its name' }. Home Helper opens the one you pick.
+  otherHomes: [],
+
   // Apps in the dock, left to right. An "All apps" icon is added at the end.
   dock: ['iptv', 'netflix', 'youtube', 'prime', 'disney', 'apple'],
 

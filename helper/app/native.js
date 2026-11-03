@@ -84,8 +84,8 @@ function readHomeRequest(){
   try{fs.writeFileSync(data+'/home-response.tmp',JSON.stringify(result),{mode:432});fs.chmodSync(data+'/home-response.tmp',432);fs.renameSync(data+'/home-response.tmp',data+'/home-response.json');}catch(e){log({event:'home-response-error',error:String(e)});}
  }
  try{
-  if(request.method==='homeStatus')respond({returnValue:true,enabled:homeControl.enabled()});
-  else if(request.method==='setHomeControl'){homeControl.set(request.enabled);respond({returnValue:true,enabled:homeControl.enabled()});}
+  if(request.method==='homeStatus')respond({returnValue:true,enabled:homeControl.enabled(),launcher:homeControl.launcher()});
+  else if(request.method==='setHomeControl'){homeControl.set(request.enabled,request.launcher);respond({returnValue:true,enabled:homeControl.enabled(),launcher:homeControl.launcher()});}
   else if(request.method==='openLGHome')visitLG(function(ok){respond({returnValue:ok});});
   else respond({returnValue:false,errorText:'Invalid Home request'});
  }catch(e){respond({returnValue:false,errorText:String(e)});}
@@ -101,14 +101,14 @@ function finish(code,signal){if(stopping)return;stopping=true;if(screenWatch)scr
  if(ready){var c=cp.spawn(root+'/relay',['cleanup'],{stdio:'ignore'});c.on('exit',function(n){log({event:'cleanup',code:n});cleaned();});}else cleaned();
 }
 function start(){lastAck=monotonic();child=cp.spawn(root+'/relay',[],{stdio:['pipe','pipe','pipe']});log({event:'worker-start',pid:child.pid});child.stderr.on('data',function(b){log({stderr:String(b)});});child.on('error',function(e){log({error:String(e)});finish(1);});child.on('exit',finish);
- child.stdout.on('data',function(b){buffer+=b;var i;while((i=buffer.indexOf('\n'))>=0){var line=buffer.slice(0,i);buffer=buffer.slice(i+1);if(line==='P'){lastAck=monotonic();continue;}log({event:'worker',message:line});if(line==='BACK_DOWN'){cancelResume();screenPolicy.back(true,monotonic());}if(line==='BACK_UP')screenPolicy.back(false,monotonic());if(line==='HOME'){screenPolicy.clearBack();homeSequence++;lastHomeAt=monotonic();diagnostic('home');}if(line==='READY'){ready=true;lastAck=monotonic();child.stdin.write(homeControl.enabled()?'E':'D');}if(line==='LGHOME'&&!stopping)visitLG();if(line==='HOME'&&homeControl.enabled()&&!visitingLG&&!stopping&&!launching){suppressReturnUntil=0;launching=true;launch('com.local.ambienthome',function(ok){launching=false;if(!ok)child.stdin.end();});}}});
+ child.stdout.on('data',function(b){buffer+=b;var i;while((i=buffer.indexOf('\n'))>=0){var line=buffer.slice(0,i);buffer=buffer.slice(i+1);if(line==='P'){lastAck=monotonic();continue;}log({event:'worker',message:line});if(line==='BACK_DOWN'){cancelResume();screenPolicy.back(true,monotonic());}if(line==='BACK_UP')screenPolicy.back(false,monotonic());if(line==='HOME'){screenPolicy.clearBack();homeSequence++;lastHomeAt=monotonic();diagnostic('home');}if(line==='READY'){ready=true;lastAck=monotonic();child.stdin.write(homeControl.enabled()?'E':'D');}if(line==='LGHOME'&&!stopping)visitLG();if(line==='HOME'&&homeControl.enabled()&&!visitingLG&&!stopping&&!launching){suppressReturnUntil=0;launching=true;launch(homeControl.launcher(),function(ok){launching=false;if(!ok)child.stdin.end();});}}});
  child.stdin.on('error',function(){});
 }
 var timer=setInterval(function(){if(stopping)return;readHomeRequest();try{var raw=fs.readFileSync(data+'/control.json','utf8');if(raw!==lastCommand){lastCommand=raw;var command=JSON.parse(raw);diagnosticCommand(command.cmd,command.nonce);if(command.cmd==='startup-status')service.call('luna://com.local.nativehome.service/status',{},function(r){log({event:'startup-status',result:r.payload});});if(command.cmd==='stop'&&child)child.stdin.write('Q');}}catch(e){}
  if(resumePendingUntil&&ready&&!launching&&!visitingLG&&homeControl.enabled()){
   var resumeDue=resumePendingUntil;resumePendingUntil=0;
-  if(!shouldResumeLaunch(lastForeground)){log({event:'resume-already-foreground'});}
-  else if(monotonic()<=resumeDue){launching=true;log({event:'resume-launch'});launch('com.local.ambienthome',function(ok){launching=false;if(!ok)log({event:'resume-launch-failed'});});}
+  if(!shouldResumeLaunch(lastForeground,homeControl.launcher())){log({event:'resume-already-foreground'});}
+  else if(monotonic()<=resumeDue){launching=true;log({event:'resume-launch'});launch(homeControl.launcher(),function(ok){launching=false;if(!ok)log({event:'resume-launch-failed'});});}
  }
  // A successful Luna reply only acknowledges the request. LG Home can win
  // later, including while a launch is in flight, so check the current level.
@@ -118,11 +118,11 @@ var timer=setInterval(function(){if(stopping)return;readHomeRequest();try{var ra
  if(resumeGuardUntil&&resumeRetries<2&&ready&&!launching&&!visitingLG&&homeControl.enabled()&&
     lastForeground==='com.webos.app.home'&&lgHomeSince!==null&&now-lgHomeSince>=1500&&now-lastLaunchSettledAt>=5000){
   resumeRetries++;launching=true;log({event:'resume-retry',attempt:resumeRetries});
-  launch('com.local.ambienthome',function(ok){launching=false;if(!ok)log({event:'resume-retry-failed'});});
+  launch(homeControl.launcher(),function(ok){launching=false;if(!ok)log({event:'resume-retry-failed'});});
  }
  if(child){if(policy.expired(lastAck,monotonic())){log({event:'worker-watchdog'});child.kill('SIGKILL');return;}child.stdin.write('P');}
 },400);
-setTimeout(function(){if(!homeControl.enabled()){start();return;}launch('com.local.ambienthome',function(ok){if(ok)start();else {block();process.exit(3);}});},automatic?0:1000);
+setTimeout(function(){if(!homeControl.enabled()){start();return;}launch(homeControl.launcher(),function(ok){if(ok)start();else {block();process.exit(3);}});},automatic?0:1000);
 
 
 process.on('exit',function(code){log({event:'controller-exit',code:code});});
@@ -138,16 +138,17 @@ service.call('luna://com.local.nativehome.service/status',{},function(m){
 
 var powerPolicy=require('./power-policy')();
 var watchedApps=[];try{watchedApps=JSON.parse(fs.readFileSync(data+'/apps.json','utf8'));if(!Array.isArray(watchedApps))watchedApps=[];}catch(e){}
-var screenPolicy=require('./screen-policy')(watchedApps);
+// The chosen home screen is never an app to come back from (screen-policy.js).
+var screenPolicy=require('./screen-policy')(watchedApps,function(id){return id===homeControl.launcher();});
 var screenWatch=require('./screen-watch')(data,screenLog,function(id){
  if(id==='com.webos.app.home'){if(lgHomeSince===null)lgHomeSince=monotonic();}
- else {lgHomeSince=null;if(id&&id!=='com.webos.app.cpcover'&&id!=='com.local.ambienthome')cancelResume();}
+ else {lgHomeSince=null;if(id&&id!=='com.webos.app.cpcover'&&id!==homeControl.launcher())cancelResume();}
  lastForeground=id;lastForegroundAt=monotonic();log({event:'foreground',id:id});diagnostic('foreground');
  var exited=screenPolicy.next(id,monotonic());
  if(exited&&homeControl.enabled()&&!visitingLG&&monotonic()>suppressReturnUntil&&ready&&!stopping&&!launching){
   resumeGuardUntil=monotonic()+30000;resumeRetries=0;
   launching=true;log({event:'return-after-exit'});
-  launch('com.local.ambienthome',function(ok){launching=false;if(!ok)log({event:'return-after-exit-failed'});});
+  launch(homeControl.launcher(),function(ok){launching=false;if(!ok)log({event:'return-after-exit-failed'});});
  }
 },function(){lastForeground=null;lastForegroundAt=null;monitor='reset';monitorReason=null;lgHomeSince=null;screenPolicy.reset();diagnostic('monitor-reset');},function(p){
  log({event:'power',state:p.state,processing:p.processing,onOff:p.onOff});

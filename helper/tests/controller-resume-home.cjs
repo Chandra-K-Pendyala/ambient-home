@@ -1,11 +1,13 @@
 // Exercise the real controller with asynchronous Luna replies and a virtual clock.
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm'),E=require('events');
 const HOME='com.local.ambienthome',LG='com.webos.app.home',COVER='com.webos.app.cpcover';
-function controller({automatic=true,blocked=false}={}){
+// home: another home screen saved as the one Home opens (home-control.json); Ambient Home when not given.
+function controller({automatic=true,blocked=false,home=null}={}){
  let now=1000,seq=0,worker,watch,requestId=0;
  const timers=new Map(),files=new Map(),calls=[],logs=[];
  const dir='/media/developer/apps/usr/palm/applications/com.local.nativehome/state/';
  if(blocked)files.set(dir+'blocked','stopped');
+ if(home)files.set(dir+'home-control.json',JSON.stringify({enabled:true,launcher:home}));
  files.set(dir+'apps.json','["com.example.video"]');
  function schedule(fn,ms,repeat){const id=++seq;timers.set(id,{fn,at:now+ms,repeat});return id;}
  function advance(ms){const end=now+ms;while(true){let found;for(const entry of timers)if(entry[1].at<=end&&(!found||entry[1].at<found[1].at))found=entry;if(!found)break;const [id,t]=found;now=t.at;if(t.repeat)t.at+=t.repeat;else timers.delete(id);t.fn();}now=end;}
@@ -25,7 +27,7 @@ function controller({automatic=true,blocked=false}={}){
  advance(automatic?0:1000);calls[0].reply();worker.stdout.emit('data',Buffer.from('READY\n'));
  function resume(){watch.power({state:'Suspend'});watch.fg(COVER);watch.power({state:'Active'});advance(400);}
  function rpc(method,enabled){files.set(dir+'home-request.json',JSON.stringify({id:(++requestId).toString(16).padStart(32,'0'),method,enabled,expires:now+5000}));advance(400);}
- return{calls,logs,files,dir,advance,resume,rpc,fg:id=>watch.fg(id),watchLog:x=>watch.log(x),command(cmd){files.set(dir+'control.json',JSON.stringify({cmd,nonce:(++requestId).toString(16).padStart(32,'0')}));advance(400);},power:p=>watch.power(p),reset:()=>watch.reset(),worker:()=>worker,homeCalls:()=>calls.filter(c=>c.id===HOME)};
+ return{calls,logs,files,dir,advance,resume,rpc,fg:id=>watch.fg(id),watchLog:x=>watch.log(x),command(cmd){files.set(dir+'control.json',JSON.stringify({cmd,nonce:(++requestId).toString(16).padStart(32,'0')}));advance(400);},power:p=>watch.power(p),reset:()=>watch.reset(),worker:()=>worker,homeCalls:()=>calls.filter(c=>c.id===(home||HOME))};
 }
 test('LG Home arriving while resume launch is in flight is retried without another foreground event',()=>{
  const c=controller();c.resume();c.advance(400);c.fg(LG);c.advance(800);
@@ -138,4 +140,13 @@ test('diagnostics reports unavailable monitoring, clears stale foreground, stops
  c.watchLog({event:'screen-watch-connected'});c.fg(HOME);
  assert.equal(c.logs.at(-1).monitorReason,null);
  assert.equal(c.logs.at(-1).foreground,HOME);
+});
+test('another chosen home screen gets the same resume recovery as Ambient Home',()=>{
+ const OTHER='com.local.otherhome';
+ let c=controller({home:OTHER});assert.equal(c.calls[0].id,OTHER,'boot opens the chosen home screen');
+ c.resume();assert.equal(c.calls[1].id,OTHER);c.calls[1].reply();c.fg(OTHER);c.advance(6000);assert.equal(c.homeCalls().length,2);
+ c.fg(LG);c.advance(1600);assert.equal(c.homeCalls().length,3,'its own return keeps the recovery window open');
+ c=controller({home:OTHER});c.power({state:'Suspend'});c.fg(OTHER);c.power({state:'Active'});c.advance(6000);assert.equal(c.homeCalls().length,1,'already back: no duplicate launch');
+ c.fg(LG);c.advance(1600);assert.equal(c.homeCalls().length,2);
+ c=controller({home:OTHER});c.resume();c.fg(HOME);c.calls[1].reply();c.fg(LG);c.advance(20000);assert.equal(c.homeCalls().length,2,'Ambient Home is an ordinary app now: it cancels recovery');
 });

@@ -10,7 +10,9 @@
 #   TV_HOST=<TV IP> scripts/tv-home.sh install
 #                                build, then install Ambient Home and Home Helper and give Helper its settings.
 #                                The Home button still opens LG Home until you run start.
-#   scripts/tv-home.sh start     Home opens Ambient Home; from now on Helper starts by itself when the TV starts
+#   scripts/tv-home.sh start [<app id>]
+#                                Home opens Ambient Home, or another home screen app of yours (an app id
+#                                com.local.<name>); from now on Helper starts by itself when the TV starts
 #   scripts/tv-home.sh lg        Home opens LG Home again, until start
 #   scripts/tv-home.sh status    is Helper running?
 #   scripts/tv-home.sh remove    stop Helper and its start with the TV, and uninstall Helper, Ambient Home and
@@ -46,6 +48,11 @@ installed() { "$BIN/ares-install" --device "$DEVICE" --list 2>/dev/null | grep -
 # the controller (named com.local.nativehome, or node running native.js): never a stale ID, nor the relay.
 RUNNING="pid=\$(cat $STATE/controller.pid 2>/dev/null); case \"\$pid\" in ''|*[!0-9]*) false;; *) case \"\$(tr '\\0' ' ' < /proc/\$pid/cmdline 2>/dev/null)\" in '$HELPER '*|*/$HELPER/native.js*) true;; *) false;; esac;; esac"
 running() { [ "$(tv "if $RUNNING; then echo RUNNING; fi")" = RUNNING ]; }
+
+# A home screen Helper may open: one of your own Developer Mode apps (com.local.<name>), never Helper itself. The same
+# rule as helper/app/home-choice.js.
+valid_home() { [[ "$1" =~ ^com\.local\.[a-z0-9]{1,40}$ ]] && [ "$1" != "$HELPER" ]; }
+home_name() { if [ "$1" = "$APP_ID" ]; then echo "Ambient Home"; else echo "$1"; fi; }
 
 build() {
   if ! zig version >/dev/null 2>&1; then
@@ -125,16 +132,40 @@ case "${1:-}" in
       echo "Home Helper is not installed: TV_HOST=<TV IP> $0 install" >&2
       exit 1
     fi
-    if running; then
-      echo "Helper is already running. If Home opens LG Home, pick Settings > Home button opens > This home screen in Ambient Home."
-      exit 0
+    home="${2:-$APP_ID}"
+    if ! valid_home "$home"; then
+      echo "Not a home screen app of yours: $home (an app id com.local.<name>)" >&2
+      exit 1
     fi
-    # Helper reads this choice when it starts; it is the same one Ambient Home's Settings changes.
-    tv "printf '{\"enabled\":true}' > $STATE/home-control.json.tmp && chmod 660 $STATE/home-control.json.tmp && mv -f $STATE/home-control.json.tmp $STATE/home-control.json" >/dev/null
+    if ! installed "$home"; then
+      echo "$(home_name "$home") is not installed on the TV." >&2
+      exit 1
+    fi
+    if running; then
+      if [ -z "${2:-}" ]; then
+        echo "Helper is already running. If Home opens LG Home, pick a home screen in Settings > Home button opens."
+        exit 0
+      fi
+      # A running Helper takes the choice the way Settings sends it, and answers by opening that home screen.
+      id=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+      "$BIN/ares-launch" --device "$DEVICE" "$HELPER" --params "{\"homeRequest\":{\"id\":\"$id\",\"method\":\"setHomeControl\",\"enabled\":true,\"launcher\":\"$home\",\"from\":\"$home\"}}" >/dev/null
+      for _ in 1 2 3 4 5 6 7 8; do
+        sleep 1
+        case "$(tv "cat $STATE/home-control.json 2>/dev/null")" in
+          *'"enabled":true'*"\"launcher\":\"$home\""*)
+            echo "Done: Home opens $(home_name "$home")."
+            exit 0 ;;
+        esac
+      done
+      echo "Helper did not take the change; see $0 status." >&2
+      exit 1
+    fi
+    # Helper reads this choice when it starts; it is the same one the home screens' Settings change.
+    tv "printf '{\"enabled\":true,\"launcher\":\"$home\"}' > $STATE/home-control.json.tmp && chmod 660 $STATE/home-control.json.tmp && mv -f $STATE/home-control.json.tmp $STATE/home-control.json" >/dev/null
     "$BIN/ares-launch" --device "$DEVICE" "$HELPER" --params '{"nativeHomeStart":true}' >/dev/null
     for _ in 1 2 3 4 5 6 7 8 9 10; do
       if running; then
-        echo "Done: Home opens Ambient Home. Hold Back for LG Home once; press Home three times to turn this off."
+        echo "Done: Home opens $(home_name "$home"). Hold Back for LG Home once; press Home three times to turn this off."
         exit 0
       fi
       sleep 1
@@ -153,9 +184,10 @@ case "${1:-}" in
     fi
     if running; then
       choice=$(tv "cat $STATE/home-control.json 2>/dev/null")
+      home=$(printf '%s' "$choice" | sed -n 's/.*"launcher":"\([a-z0-9.]*\)".*/\1/p')
       case "$choice" in
-        *'"enabled":false'*) echo "Helper is running; Home opens LG Home (chosen in Ambient Home's Settings)." ;;
-        *) echo "Helper is running; Home opens Ambient Home." ;;
+        *'"enabled":false'*) echo "Helper is running; Home opens LG Home (chosen in Settings)." ;;
+        *) echo "Helper is running; Home opens $(home_name "${home:-$APP_ID}")." ;;
       esac
     elif [ "$(tv "[ -e $STATE/blocked ] && echo BLOCKED")" = BLOCKED ]; then
       echo "Helper is stopped (Home pressed three times, or $0 lg); Home opens LG Home until $0 start."
@@ -177,7 +209,7 @@ case "${1:-}" in
     echo "Removed. The TV is back to LG's own Home. The pairing keys stay in .lgtv-key.json; delete that file to remove them from this Mac."
     ;;
   *)
-    sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 esac

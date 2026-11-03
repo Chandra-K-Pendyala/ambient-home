@@ -14,6 +14,13 @@ function launch(id,launchParams,done){
  cp.execFile('/usr/bin/luna-send-pub',['-n','1','luna://com.webos.applicationManager/launch',JSON.stringify(request)],{timeout:5000},function(error){done(!error);});
 }
 if(params.nativeHomeAuto===true||params.nativeHomeStart===true)start(params.nativeHomeAuto===true);
-// Ambient Home's Settings (see home-bridge.js).
+// A home screen's Settings (see home-bridge.js).
 else if(params.homeRequest!==undefined)require('./home-bridge')({fs:require('fs'),data:root+'/state',root:root,start:function(){start(false);},launch:launch})(params.homeRequest,function(code){process.exit(code);});
-else launch('com.local.ambienthome',{showHelper:true},function(ok){process.exit(ok?0:1);});
+// The tile shows the Home settings of the chosen home screen, or Ambient Home's if that one cannot be opened.
+else (function(){
+ var choice=require('./home-choice'),home=choice.read(require('fs'),root+'/state').launcher;
+ launch(home,{showHelper:true},function(ok){
+  if(ok||home===choice.AMBIENT){process.exit(ok?0:1);return;}
+  launch(choice.AMBIENT,{showHelper:true},function(again){process.exit(again?0:1);});
+ });
+})();

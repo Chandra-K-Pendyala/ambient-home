@@ -333,8 +333,9 @@
   function selectOption(e) {
     each(e.parentNode.children, function (o) { o.classList.toggle('is-selected', o === e); });
     if (e.dataset.group === 'home') {
-      if (onTv()) setHomeButton(e.dataset.value === 'ours');
-      else toast(e.dataset.value === 'lg' ? 'Home button now opens LG Home. Switch back here any time.' : 'Home button opens this home screen.');
+      if (onTv()) setHomeButton(e.dataset.value);
+      else toast(e.dataset.value === 'lg' ? 'Home button now opens LG Home. Switch back here any time.' :
+        e.dataset.value === 'ours' ? 'Home button opens this home screen.' : 'Home button now opens ' + homeName(e.dataset.value) + '.');
     } else {
       idleMinutes = +e.dataset.value;
       try { localStorage.setItem('idleMinutes', idleMinutes); } catch (err) { /* not saved; this visit still uses it */ }
@@ -347,8 +348,30 @@
   // Home Helper (helper/) watches the remote and opens this app when Home is pressed; pressing Home three times stops
   // it until it is started again. webOS keeps each app's files and services to itself, so Settings asks Helper by
   // opening it with a request ({ homeRequest }), and Helper answers by opening this app with the answer ({ homeReply }).
-  var HELPER_APP = 'com.local.nativehome';
+  // Home can also open another home screen of yours (config otherHomes), offered here between this one and LG Home.
+  var HELPER_APP = 'com.local.nativehome', SELF = 'com.local.ambienthome';
   var helper = null, helperAsk = null;
+  var otherHomes = (C.otherHomes || []).filter(function (h) {
+    return h && /^com\.local\.[a-z0-9]{1,40}$/.test(h.id) && h.id !== SELF && h.id !== HELPER_APP && h.name;
+  });
+
+  function homeName(id) {
+    var h = otherHomes.filter(function (x) { return x.id === id; })[0];
+    return h ? h.name : id;
+  }
+
+  function buildHomeChoices() {
+    var lg = document.querySelector('[data-group="home"][data-value="lg"]');
+    otherHomes.forEach(function (h) {
+      var o = el('div', 'seg-option');
+      o.setAttribute('data-row', '0');
+      o.setAttribute('data-action', 'seg');
+      o.setAttribute('data-group', 'home');
+      o.setAttribute('data-value', h.id);
+      o.textContent = h.name;
+      lg.parentNode.insertBefore(o, lg);
+    });
+  }
 
   function homeNote(text) { byId('homeNote').textContent = text; }
 
@@ -371,11 +394,15 @@
     return id;
   }
 
-  // One request at a time. done(answer) gets Helper's answer { returnValue, running, blocked, enabled }, or
+  // One request at a time. done(answer) gets Helper's answer { returnValue, running, blocked, enabled, launcher }, or
   // { missing: true } when Helper could not be opened, or { timeout: true } when it did not answer in time.
-  function askHelper(method, enabled, done) {
-    var id = requestId(), request = { id: id, method: method };
-    if (typeof enabled === 'boolean') request.enabled = enabled;
+  // choice: { enabled, launcher } for setHomeControl; launcher is the home screen Home opens.
+  function askHelper(method, choice, done) {
+    var id = requestId(), request = { id: id, method: method, from: SELF };
+    if (choice) {
+      request.enabled = choice.enabled;
+      if (choice.launcher) request.launcher = choice.launcher;
+    }
     // Starting Helper takes a few seconds; its answer comes once it runs.
     helperAsk = { id: id, done: done, timer: setTimeout(function () { helperAnswer({ id: id, timeout: true }); }, method === 'setHomeControl' ? 15000 : 8000) };
     callLuna('luna://com.webos.applicationManager/launch', { id: HELPER_APP, params: { homeRequest: request } }, function (r) {
@@ -405,8 +432,10 @@
     }
     helper = a.returnValue === true ? a : null;
     if (helper && helper.running) {
-      showHomeChoice(helper.enabled ? 'ours' : 'lg');
-      homeNote(helper.enabled ? 'Home, and leaving an app, bring you here.' : 'Home opens LG Home.');
+      var home = !helper.enabled ? 'lg' : !helper.launcher || helper.launcher === SELF ? 'ours' : helper.launcher;
+      showHomeChoice(home);
+      homeNote(home === 'ours' ? 'Home, and leaving an app, bring you here.' : home === 'lg' ? 'Home opens LG Home.' :
+        'Home, and leaving an app, open ' + homeName(home) + '.');
       return;
     }
     showHomeChoice('lg');
@@ -416,17 +445,21 @@
       'Home Helper is off, so Home opens LG Home. Choose This home screen to turn it on.');
   }
 
-  // Choosing This home screen also starts Helper when it is stopped, which ends the stop from pressing Home three times.
-  function setHomeButton(ours) {
+  // value: 'ours', 'lg' or another home screen's app id. Choosing a home screen also starts Helper when it is stopped,
+  // which ends the stop from pressing Home three times. LG Home keeps the chosen home screen for next time.
+  function setHomeButton(value) {
     if (helperAsk) {
       toast('Still waiting for Home Helper. Try again in a moment.');
       return;
     }
-    homeNote(ours && !(helper && helper.running) ? 'Starting Home Helper…' : 'Changing the Home button…');
-    askHelper('setHomeControl', ours, function (a) {
+    var on = value !== 'lg';
+    homeNote(on && !(helper && helper.running) ? 'Starting Home Helper…' : 'Changing the Home button…');
+    askHelper('setHomeControl', { enabled: on, launcher: on ? (value === 'ours' ? SELF : value) : null }, function (a) {
       showHelperState(a);
-      if (a.returnValue === true) toast(a.running && a.enabled ? 'Home opens this home screen.' : 'Home opens LG Home.');
-      else if (!a.missing && !a.timeout) toast('The Home button did not change. Try again.');
+      if (a.returnValue === true) {
+        toast(!(a.running && a.enabled) ? 'Home opens LG Home.' : !a.launcher || a.launcher === SELF ? 'Home opens this home screen.' :
+          'Home opens ' + homeName(a.launcher) + '.');
+      } else if (!a.missing && !a.timeout) toast('The Home button did not change. Try again.');
     });
   }
 
@@ -670,6 +703,7 @@
   buildRows();
   buildAllApps();
   buildLaunchFx();
+  buildHomeChoices();
   setFocus(byId('appsTrack').firstChild);
   each(document.querySelectorAll('[data-group="idle"]'), function (o) { o.classList.toggle('is-selected', +o.dataset.value === idleMinutes); });
   moveIdle();
